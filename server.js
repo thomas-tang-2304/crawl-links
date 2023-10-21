@@ -65,6 +65,10 @@ app.post("/crawl-links", async function (req, res) {
   });
 });
 
+app.get('/', (req,res) => {
+  res.send("Hello");
+})
+
 const PORT = 3001;
 
 app.listen(PORT, () => {

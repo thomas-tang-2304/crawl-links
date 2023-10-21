@@ -5,13 +5,14 @@
   "main": "index.js",
   "engines": {
     "npm": ">=8.0.0 <9.0.0",
-    "node": ">=16.0.0 <17.0.0"
+    "node": "16.x"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "crawl": "node crawl/index",
     "server": "pm2 start server",
-    "dev": "nodemon --inspect server"
+    "dev": "nodemon --inspect server",
+    "production": "node server"
   },
   "keywords": [],
   "author": "",
