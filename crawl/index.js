@@ -1,6 +1,5 @@
 const { writeFileSync } = require("fs");
-const { crawlLinks } = require("./crawler");
-const { crawlLinks2 } = require("./crawler2");
+const { crawlLinks, crawlLinks2 } = require("./crawler");
 const { color } = require("./func/coloringLogger");
 const { uniqueArray } = require("./func/uniqueArray");
 const { isValidUrl } = require("./func/validUrl");
@@ -38,6 +37,8 @@ const run = async (c_url) => {
     : new URL(`https://${c_url}`).href;
   console.log("origin: ", originUrl);
   const allLinks_loai = await Crawl(c_url);
+
+ 
   // console.log(allLinks_loai);
 
   for (const link of allLinks_loai.href_links) {
@@ -78,7 +79,7 @@ const run = async (c_url) => {
             )}`
           );
         });
-        console.log(uniqueArray(Crawled.href_links));
+        // console.log(uniqueArray(Crawled.href_links));
         return Crawled;
       });
 
