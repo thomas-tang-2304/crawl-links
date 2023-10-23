@@ -3,7 +3,6 @@ const { crawlLinks, crawlLinks2 } = require("./crawler");
 const { color } = require("./func/coloringLogger");
 const { uniqueArray } = require("./func/uniqueArray");
 const { isValidUrl } = require("./func/validUrl");
-const { match_trangloai, match_chitiet } = require("./regex");
 
 let trangloai = { href_links: [], src_links: [] };
 
@@ -38,7 +37,6 @@ const run = async (c_url) => {
   console.log("origin: ", originUrl);
   const allLinks_loai = await Crawl(c_url);
 
- 
   // console.log(allLinks_loai);
 
   for (const link of allLinks_loai.href_links) {
@@ -64,17 +62,16 @@ const run = async (c_url) => {
     if (trangloai.href_links[i]?.startsWith(originUrl))
       temp.push(trangloai.href_links[i]);
     else otherLinks.push(trangloai.href_links[i]);
-    if (temp.length < 10 && (i + 1) < trangloai.href_links.length) {
+    if (temp.length < 10 && i + 1 < trangloai.href_links.length) {
     } else {
       const crawledData = await MultiPleCrawl(temp).then((Crawled) => {
-        console.log(temp.length)
+        console.log(temp.length);
         temp.forEach((Cdata) => {
           console.log(
             `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
               `${Math.round(
-                ((trangloai.href_links.indexOf(Cdata) + 1) * 100) /
-                  trangloai.href_links.length
-              )}%, total: ${trangloai.href_links.length}`,
+                ((i + 1) * 100) / trangloai.href_links.length
+              )}%, index ${color(i)}, total: ${trangloai.href_links.length}`,
               "green"
             )}`
           );

@@ -40,10 +40,10 @@ app.post("/crawl-links", async function (req, res) {
   res.status(200).send({
     href: {
       origin: uniqueArray(
-        allHrefLinks.map((link) => link.toString().split("/")[2])
+        allHrefLinks.map((link) => link.toString().split("/")[2] ?? link)
       ).reduce((result, element) => {
         result[element] = allHrefLinks
-          .map((link) => link.toString().split("/")[2])
+          .map((link) => link.toString().split("/")[2] ?? link)
           .filter((l) => l == element).length;
         return result;
       }, {}),
@@ -52,10 +52,10 @@ app.post("/crawl-links", async function (req, res) {
     },
     src: {
       origin: uniqueArray(
-        allSrcLinks.map((link) => link.toString().split("/")[2])
+        allSrcLinks.map((link) => link.toString().split("/")[2] ?? link)
       ).reduce((result, element) => {
         result[element] = allSrcLinks
-          .map((link) => link.toString().split("/")[2])
+          .map((link) => link.toString().split("/")[2] ?? link)
           .filter((l) => l == element).length;
         return result;
       }, {}),
