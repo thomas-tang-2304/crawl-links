@@ -12,7 +12,7 @@
     "crawl": "node crawl/index",
     "server": "pm2 start server",
     "dev": "node server",
-    "production": "SET NODE_ENV=production & node server"
+    "production": "NODE_ENV=production pm2 start server.js --name myApp"
   },
   "keywords": [],
   "author": "",

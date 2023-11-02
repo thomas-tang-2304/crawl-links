@@ -2,9 +2,7 @@ const { writeFileSync } = require("fs");
 const { crawlLinks2 } = require("./crawler");
 const { color } = require("./func/coloringLogger");
 const { uniqueArray } = require("./func/uniqueArray");
-const { readFileHistory } = require("../crawl/modules/readFileHistory");
 
-const randToken = require("rand-token");
 const { jsonToHtmlList } = require("../crawl/func/jsonToHtml");
 const { getFormattedDate } = require("./func/dating");
 const { isDataURI } = require("./func/validUrl");
@@ -43,6 +41,7 @@ const getKeyIndex = (href, url) => {
 };
 
 const run = async (c_url) => {
+  const startTime = process.hrtime();
   const originUrl = c_url.includes("http")
     ? c_url
     : new URL(`https://${c_url}`).href;
@@ -51,17 +50,20 @@ const run = async (c_url) => {
   let allLinks_loai = await MultiPleCrawl([c_url]);
 
   let temp = [];
-  let otherLinks = [];
-  for (let i = 0; i < Object.keys(allLinks_loai.href_links).length; i++) {
-    const limit = parseInt(Object.keys(allLinks_loai.href_links).length / 20);
-    if (Object.keys(allLinks_loai.href_links)[i]?.startsWith(originUrl))
-      temp.push(Object.keys(allLinks_loai.href_links)[i]);
-    else otherLinks.push(Object.keys(allLinks_loai.href_links)[i]);
-
+  let arrayAllLinks = Object.keys(allLinks_loai.href_links);
+  for (let i = 0; i < arrayAllLinks.length; i++) {
+    const limit =
+      parseInt(arrayAllLinks.length / 20) < 10
+        ? 10
+        : parseInt(arrayAllLinks.length / 20);
     if (
-      temp.length >= limit ||
-      i + 1 >= Object.keys(allLinks_loai.href_links).length
-    ) {
+      arrayAllLinks[i]?.startsWith(originUrl) &&
+      !arrayAllLinks[i]?.includes("#")
+    )
+      temp.push(arrayAllLinks[i]);
+    // else otherLinks.push(arrayAllLinks[i]);
+
+    if (temp.length >= limit || i + 1 >= arrayAllLinks.length) {
       console.log(
         color(
           `${temp.length} urls have been add to queue ------------------------------ `,
@@ -74,49 +76,46 @@ const run = async (c_url) => {
             console.log(
               `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
                 `${Math.round(
-                  ((i + 1) * 100) / Object.keys(allLinks_loai.href_links).length
-                )}%, index ${color(i, "green")}, total: ${
-                  Object.keys(allLinks_loai.href_links).length
+                  ((i + 1) * 100) / arrayAllLinks.length
+                )}%, index ${color(i + 1, "green")}, total: ${
+                  arrayAllLinks.length
                 }`,
                 "green"
               )}`
             );
           });
-
+          arrayAllLinks = uniqueArray([
+            ...arrayAllLinks,
+            ...Object.keys(Crawled.href_links),
+          ]);
           return Crawled;
         }
       );
 
       Object.keys(crawledData.href_links).forEach((c) => {
         if (allLinks_loai.href_links.hasOwnProperty(c))
-          allLinks_loai.href_links[c] = uniqueArray([
-            ...allLinks_loai.href_links[c],
-            ...crawledData.href_links[c],
-          ]).filter((a) => a !== -1);
-        else {
-          allLinks_loai.href_links[c] = crawledData.href_links[c].filter(
-            (a) => a !== -1
-          );
-        }
+          allLinks_loai.href_links[c].push(...crawledData.href_links[c]);
       });
 
       Object.keys(crawledData.src_links).forEach((c) => {
-        // console.log(allLinks_loai.href_links[c]);
         if (allLinks_loai.src_links.hasOwnProperty(c))
-          allLinks_loai.src_links[c] = uniqueArray([
-            ...allLinks_loai.src_links[c],
-            ...crawledData.src_links[c],
-          ]).filter((a) => a !== -1);
-        else {
-          allLinks_loai.src_links[c] = crawledData.src_links[c].filter(
-            (a) => a !== -1
-          );
-        }
+          allLinks_loai.src_links[c].push(...crawledData.src_links[c]);
       });
 
       temp = [];
-      otherLinks = [];
     }
+  }
+
+  for (const _href of Object.keys(allLinks_loai.href_links)) {
+    allLinks_loai.href_links[_href] = uniqueArray(
+      allLinks_loai.href_links[_href]
+    ).filter((a) => a !== 1);
+  }
+
+  for (const _src of Object.keys(allLinks_loai.src_links)) {
+    allLinks_loai.src_links[_src] = uniqueArray(
+      allLinks_loai.src_links[_src]
+    ).filter((a) => a !== 1);
   }
 
   writeFileSync(
@@ -130,28 +129,21 @@ const run = async (c_url) => {
       "-"
     )}.json`
   );
+
+  const endTime = process.hrtime(startTime);
+  console.log(
+    `Time elapsed: ${Math.floor(endTime[0] / 60)}h ${endTime[0] % 60}s ${
+      endTime[1] / 1e6
+    }ms`
+  );
   return {
-    filename: '${new URL(originUrl).hostname.replace(/./g, "-")}.json',
+    filename: `${new URL(originUrl).hostname.replace(/./g, "-")}.json`,
     data: { allLinks: allLinks_loai },
   };
 };
-// (async () => {
-//   console.log(await run("https://pt.phongkhamdakhoabuonmethuot.vn/"));
-// })();
+
 const runCrawling = async (Url) => {
   console.log("crawling for: ", Url);
-  // console.log(trangloai);
-
-  // const trangloai = {};
-  // const token = randToken.generate(8);
-  // trangloai[`${token}`] = {
-  //   // href_links: {},
-  //   // src_links: {},
-  //   allLinks: {
-  //     href_links: [],
-  //     src_links: [],
-  //   },
-  // };
 
   const parseUrl = Url.includes("http") ? Url : new URL(`https://${Url}`).href;
   const jsonFileUrl = await run(parseUrl);
@@ -180,20 +172,14 @@ const runCrawling = async (Url) => {
 
     total: jsonArray.length,
   });
-  // console.log(filterOriginStatics(jsonFileUrl.data.allLinks.href_links));
 
   return jsonToHtmlList({
     completed_date: getFormattedDate(),
-    // token,
     href: filterOriginStatics(
       Object.keys(jsonFileUrl.data.allLinks.href_links)
     ),
     src: filterOriginStatics(Object.keys(jsonFileUrl.data.allLinks.src_links)),
   });
 };
-
-// (async() => {
-//   await runCrawling("https://phongkhambenhxahoidaklak.vn/");
-// })();
 
 module.exports = { runCrawling };

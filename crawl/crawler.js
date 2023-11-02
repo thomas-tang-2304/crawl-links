@@ -34,7 +34,11 @@ const crawlLinks2 = async (links) => {
       // Intercept requests and block images and stylesheets
       page.on("request", (request) => {
         const resourceType = request.resourceType();
-        if (resourceType === "image" || resourceType === "stylesheet") {
+        if (
+          resourceType === "image" ||
+          resourceType === "stylesheet" ||
+          resourceType === "script"
+        ) {
           // Block the request
           request.abort();
         } else {
@@ -44,43 +48,46 @@ const crawlLinks2 = async (links) => {
       });
       await page.goto(url, { timeout: 0 });
 
-      // await page.waitForSelector("a");
+      const links = await page.evaluate(() => {
+        const hrefs = Array.from(document.querySelectorAll("a"));
+        const srcs = Array.from(document.querySelectorAll("*:not(script)"));
+        const navigationData = window.performance
+          .getEntries()
+          .find((e) => e.entryType === "navigation");
 
-      const hrefs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("a"));
-        const validHrefs = [];
+        const validHrefs = {
+          hrefs: [],
+          srcs: [],
+        };
 
-        links.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.href);
-            validHrefs.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
+        if (navigationData.responseStatus == 200) {
+          hrefs.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.href);
+              validHrefs.hrefs.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
+
+          srcs.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.src);
+              validHrefs.srcs.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
+        }
 
         return validHrefs;
       });
 
-      const srcs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("*"));
-        const validHrefs = [];
-
-        links.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.src);
-            validHrefs.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
-
-        return validHrefs;
-      });
       data[url].href_links = [];
-      data[url].href_links.push(...uniqueArray(hrefs));
+      data[url].href_links.push(...links.hrefs);
       data[url].src_links = [];
-      data[url].src_links.push(...uniqueArray(srcs));
+      data[url].src_links.push(...links.srcs);
+      // console.log(navigationData.responseStatus);
     } catch (err) {
       console.log(err);
     } finally {
@@ -101,4 +108,18 @@ const crawlLinks2 = async (links) => {
   return data;
 };
 
+async function getStatus(url) {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+
+  const status = await page.evaluate(() => {
+    return { status: document.location.href, code: document.status };
+  });
+
+  await browser.close();
+
+  return status;
+}
 module.exports = { crawlLinks2 };
