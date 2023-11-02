@@ -1,24 +1,48 @@
-const puppeteer = require("puppeteer");
+// const puppeteer = require("puppeteer");
 const { Cluster } = require("puppeteer-cluster");
 const { uniqueArray } = require("./func/uniqueArray");
 
+const pptOptions = process.env.NODE_ENV
+  ? {
+      headless: "new",
+      waitForSelector: "body",
+      executablePath: "/usr/bin/chromium-browser",
+      args: ["--no-sandbox"],
+    }
+  : {
+      waitForSelector: "body",
+      headless: "new",
+    };
+
 const crawlLinks2 = async (links) => {
+  const data = {};
   const cluster = await Cluster.launch({
     concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 10,
-    puppeteerOptions: {
-      headless: "new",
-    },
+    maxConcurrency: 50,
+    puppeteerOptions: pptOptions,
   });
-  const data = {
-    href_links: [],
-    src_links: [],
-  };
 
   await cluster.task(async ({ page, data: url }) => {
+    data[url] = {
+      href_links: [],
+      src_links: [],
+    };
     try {
-      await page.goto(url);
-      // await autoScroll(page);
+      // Enable request interception
+      await page.setRequestInterception(true);
+
+      // Intercept requests and block images and stylesheets
+      page.on("request", (request) => {
+        const resourceType = request.resourceType();
+        if (resourceType === "image" || resourceType === "stylesheet") {
+          // Block the request
+          request.abort();
+        } else {
+          // Continue the request
+          request.continue();
+        }
+      });
+      await page.goto(url, { timeout: 0 });
 
       // await page.waitForSelector("a");
 
@@ -53,11 +77,16 @@ const crawlLinks2 = async (links) => {
 
         return validHrefs;
       });
-
-      data.href_links.push(...uniqueArray(hrefs));
-      data.src_links.push(...uniqueArray(srcs));
+      data[url].href_links = [];
+      data[url].href_links.push(...uniqueArray(hrefs));
+      data[url].src_links = [];
+      data[url].src_links.push(...uniqueArray(srcs));
     } catch (err) {
       console.log(err);
+    } finally {
+      await page.close();
+      // Disable request interception when done
+      await page.setRequestInterception(false);
     }
   });
   for (const link of links) {
@@ -72,85 +101,4 @@ const crawlLinks2 = async (links) => {
   return data;
 };
 
-const crawlLinks = async (url) => {
-  try {
-    const browser = await puppeteer.launch({
-      headless: "new",
-      waitForSelector: "body",
-    });
-    const page = await browser.newPage();
-
-    await page.goto(url);
-    // await autoScroll(page);
-
-    // await page.waitForSelector("a");
-
-    const hrefs = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("a"));
-      const validHrefs = [];
-
-      links.forEach((link) => {
-        try {
-          const parsedUrl = new URL(link.href);
-          validHrefs.push(parsedUrl.href);
-        } catch (err) {
-          console.log(err);
-        }
-      });
-
-      return validHrefs;
-    });
-
-    const srcs = await page.evaluate(() => {
-      const links = Array.from(document.querySelectorAll("*"));
-      const validHrefs = [];
-
-      links.forEach((link) => {
-        try {
-          const parsedUrl = new URL(link.src);
-          validHrefs.push(parsedUrl.href);
-        } catch (err) {
-          console.log(err);
-        }
-      });
-
-      return validHrefs;
-    });
-
-    await browser.close();
-
-    return {
-      href_links: uniqueArray(hrefs),
-      src_links: uniqueArray(srcs),
-    };
-  } catch (err) {
-    console.log(err);
-  }
-};
-
-// async function autoScroll(page) {
-//   await page.evaluate(async () => {
-//     await new Promise((resolve, reject) => {
-//       let totalHeight = 0;
-//       const distance = 100; // Scroll distance per iteration (adjust as needed)
-
-//       const timer = setInterval(() => {
-//         const scrollHeight = document.body.scrollHeight;
-//         window.scrollBy(0, distance);
-
-//         totalHeight += distance;
-
-//         // If you've reached the bottom of the page or a certain height, stop scrolling
-//         if (totalHeight >= scrollHeight || totalHeight >= 3000) {
-//           clearInterval(timer);
-//           resolve();
-//         }
-//       }, 100); // Scroll every 100 milliseconds (adjust as needed)
-//     });
-//   });
-// }
-
-// (async() => {
-//   console.log(await crawlLinks("https://benhtri.dakhoadaklak.vn/"));
-//  })();
-module.exports = { crawlLinks, crawlLinks2 };
+module.exports = { crawlLinks2 };

@@ -7,4 +7,11 @@ function isValidUrl(string) {
   }
 }
 
-module.exports = { isValidUrl };
+function isDataURI(url) {
+  // Regular expression to match a data URI
+  const dataURIPattern = /^data:([a-zA-Z\/]+);base64,([A-Za-z0-9+/=]+)$/;
+
+  // Test if the URL matches the data URI pattern
+  return dataURIPattern.test(url);
+}
+module.exports = { isValidUrl, isDataURI };
