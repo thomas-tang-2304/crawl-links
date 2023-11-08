@@ -2,8 +2,9 @@ const express = require("express");
 const axios = require("axios");
 const qs = require("qs");
 // const path = require("path");
+const http = require("http");
+const socketIo = require("socket.io");
 
-const app = express();
 const bodyParser = require("body-parser");
 const cors = require("cors");
 
@@ -14,11 +15,24 @@ configEnv();
 // Routers
 const emailRouter = require("./gmail/send_mail_router");
 const { readFileHistory } = require("./crawl/modules/readFileHistory");
+const { createRealtime } = require("./io");
 
 // Declare requestQueue
 const queueLinks = [];
 
-app.use(cors());
+const app = express();
+const server = http.Server(app);
+const io = socketIo(server);
+
+app.use(
+  cors({
+    origin: `http://${process.env.ipAdd}:3000`, // Replace with your client's URL
+    rejectUnauthorized: true,
+  })
+);
+
+createRealtime(io)
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -26,7 +40,7 @@ app.use("/email", emailRouter);
 
 app.post("/crawl-links", async function (req, res) {
   try {
-    const { email, url } = req.body;
+    const { email, url, uid_socket } = req.body;
     if (!email) {
       res.status(400).send("Vui lòng cung cấp Email để tiến hành cào dữ liệu");
     }
@@ -35,7 +49,11 @@ app.post("/crawl-links", async function (req, res) {
       res.status(400).send("Vui lòng cung cấp đường dẫn url để cào dữ liệu");
     }
 
-    queueLinks.push({ email, url });
+    if (!uid_socket) {
+      res.status(400).send("Có lỗi khi gửi dữ liệu");
+    }
+
+    queueLinks.push({ email, url, uid_socket });
 
     res.status(200).send("Add queue successfully");
   } catch (err) {
@@ -71,24 +89,31 @@ app.post("/find", async function (req, res) {
       ...(allHref.src_links[keyContainsTargetInSrc] ?? []),
     ].includes(index)
   );
-    if ((keyContainsTargetInSrc?? keyContainsTargetInHref) && result.length > 0) {
-
-      res.status(200).send({
-        target: keyContainsTargetInSrc?? keyContainsTargetInHref,
-        result
-      });
-    } else {
-      res.status(400).send("No Target found");
-    }
-
+  if (
+    (keyContainsTargetInSrc ?? keyContainsTargetInHref) &&
+    result.length > 0
+  ) {
+    res.status(200).send({
+      target: keyContainsTargetInSrc ?? keyContainsTargetInHref,
+      result,
+    });
+  } else {
+    res.status(400).send("No Target found");
+  }
 });
 
+app.get("/count", async (req, res) => {
+  res.write("21");
+  setTimeout(() => {
+    res.write("2");
+  }, 3000);
+  res.end();
+});
 app.get("/", (req, res) => {
   res.send("Hello");
 });
 
-app.listen(process.env.PORT, process.env.ipAdd, () => {
-  console.log(process.env.PORT);
+server.listen(process.env.PORT, process.env.ipAdd, () => {
   console.log(
     `Server listening on http://${process.env.ipAdd}:${process.env.PORT}`
   );
@@ -102,6 +127,7 @@ app.listen(process.env.PORT, process.env.ipAdd, () => {
         email: queueLinks[0].email,
         // subject: "hehe",
         url: queueLinks[0].url,
+        uid_socket: queueLinks[0].uid_socket
       });
 
       let config = {
@@ -131,13 +157,8 @@ app.listen(process.env.PORT, process.env.ipAdd, () => {
         }, 5000);
       }
     }
-    // else {
-    //   console.log("No urls in queue");
 
-    //   Restart the interval
-    // }
   }
 
-  // Start the initial interval
   intervalId = setInterval(processQueue, 1000);
 });

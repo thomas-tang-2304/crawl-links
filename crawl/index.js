@@ -7,7 +7,15 @@ const { readFileHistory } = require("../crawl/modules/readFileHistory");
 const randToken = require("rand-token");
 const { jsonToHtmlList } = require("../crawl/func/jsonToHtml");
 const { getFormattedDate } = require("./func/dating");
-const { isDataURI } = require("./func/validUrl");
+const { isDataURI, isValidUrl } = require("./func/validUrl");
+
+
+const serverURL = "ws://localhost:3001"; 
+const socket = require("socket.io-client")(serverURL, {
+  transports: ["websocket"],
+});
+
+
 
 const MultiPleCrawl = async (curls, data) => {
   const allLinks = {
@@ -42,7 +50,7 @@ const getKeyIndex = (href, url) => {
   return Object.keys(href).indexOf(url);
 };
 
-const run = async (c_url) => {
+const run = async (c_url, uid_socket) => {
   const originUrl = c_url.includes("http")
     ? c_url
     : new URL(`https://${c_url}`).href;
@@ -68,6 +76,7 @@ const run = async (c_url) => {
           "magenta"
         )
       );
+      
       const crawledData = await MultiPleCrawl(temp, allLinks_loai).then(
         (Crawled) => {
           temp.forEach((Cdata) => {
@@ -82,7 +91,10 @@ const run = async (c_url) => {
               )}`
             );
           });
-
+          socket.emit("chat message", 
+            Object.keys(allLinks_loai.href_links).length,
+            uid_socket,
+          );
           return Crawled;
         }
       );
@@ -118,18 +130,18 @@ const run = async (c_url) => {
       otherLinks = [];
     }
   }
-
-  writeFileSync(
-    `crawl/history/${new URL(originUrl).hostname.replace(/\./g, "-")}.json`,
-    JSON.stringify({ allLinks: allLinks_loai })
-  );
-
-  console.log(
-    `file has been written into ${new URL(originUrl).hostname.replace(
-      /\./g,
-      "-"
-    )}.json`
-  );
+  if (originUrl.indexOf(".") != -1) {
+    writeFileSync(
+      `crawl/history/${new URL(originUrl).hostname.replace(/\./g, "-")}.json`,
+      JSON.stringify({ allLinks: allLinks_loai })
+    );
+    console.log(
+      `file has been written into ${new URL(originUrl).hostname.replace(
+        /\./g,
+        "-"
+      )}.json`
+    );
+  }
   return {
     filename: '${new URL(originUrl).hostname.replace(/./g, "-")}.json',
     data: { allLinks: allLinks_loai },
@@ -138,23 +150,11 @@ const run = async (c_url) => {
 // (async () => {
 //   console.log(await run("https://pt.phongkhamdakhoabuonmethuot.vn/"));
 // })();
-const runCrawling = async (Url) => {
+const runCrawling = async (Url, uid_socket) => {
   console.log("crawling for: ", Url);
-  // console.log(trangloai);
-
-  // const trangloai = {};
-  // const token = randToken.generate(8);
-  // trangloai[`${token}`] = {
-  //   // href_links: {},
-  //   // src_links: {},
-  //   allLinks: {
-  //     href_links: [],
-  //     src_links: [],
-  //   },
-  // };
 
   const parseUrl = Url.includes("http") ? Url : new URL(`https://${Url}`).href;
-  const jsonFileUrl = await run(parseUrl);
+  const jsonFileUrl = await run(parseUrl, uid_socket);
 
   const filterOriginStatics = (jsonArray) => ({
     origin: uniqueArray(
