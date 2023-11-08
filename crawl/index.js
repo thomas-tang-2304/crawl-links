@@ -63,7 +63,7 @@ const run = async (c_url) => {
       temp.push(arrayAllLinks[i]);
     // else otherLinks.push(arrayAllLinks[i]);
 
-    if (temp.length >= limit || i + 1 >= arrayAllLinks.length) {
+    if (temp.length >= 50 || i + 1 >= arrayAllLinks.length) {
       console.log(
         color(
           `${temp.length} urls have been add to queue ------------------------------ `,
@@ -93,13 +93,19 @@ const run = async (c_url) => {
       );
 
       Object.keys(crawledData.href_links).forEach((c) => {
-        if (allLinks_loai.href_links.hasOwnProperty(c))
+        if (allLinks_loai.href_links.hasOwnProperty(c)) {
           allLinks_loai.href_links[c].push(...crawledData.href_links[c]);
+        } else {
+          allLinks_loai.href_links[c] = crawledData.href_links[c];
+        }
       });
 
       Object.keys(crawledData.src_links).forEach((c) => {
-        if (allLinks_loai.src_links.hasOwnProperty(c))
+        if (allLinks_loai.src_links.hasOwnProperty(c)) {
           allLinks_loai.src_links[c].push(...crawledData.src_links[c]);
+        } else {
+           allLinks_loai.src_links[c] = crawledData.src_links[c];
+        }
       });
 
       temp = [];
