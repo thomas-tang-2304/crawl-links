@@ -1,6 +1,8 @@
 const path = require("path");
 
 module.exports = {
+  mode: 'production',
+  devtool: 'source-map',
   target: "node",
   entry: "./src/server.js",
   output: {
@@ -10,17 +12,18 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.js$/,
+        test: /\.(js)$/,
         exclude: /node_modules/,
         use: "babel-loader",
       },
     ],
   },
-  resolve: {
-    extensions: ["ts", ".js", ".json"],
-  },
-  stats:{
-    errorDetails: true
-  },
-  mode: "production"
+
+  // resolve: {
+  //   extensions: ["ts", ".js", ".json"],
+  // },
+  // stats:{
+  //   errorDetails: true
+  // },
+  // mode: "production"
 };
