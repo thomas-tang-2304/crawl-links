@@ -1,4 +1,4 @@
 node_modules/
 package-lock.json
-history/*
+src/history/*
 dist/

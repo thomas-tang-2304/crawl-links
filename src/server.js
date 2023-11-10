@@ -15,7 +15,7 @@ configEnv();
 // Routers
 const emailRouter = require("./gmail/send_mail_router");
 const { readFileHistory } = require("./crawl/modules/readFileHistory");
-const { createRealtime } = require("../io");
+const { createRealtime } = require("./io");
 
 // Declare requestQueue
 const queueLinks = [];
