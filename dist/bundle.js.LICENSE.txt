@@ -16,6 +16,10 @@ object-assign
  */
 
 /*!
+ * base64id v0.1.0
+ */
+
+/*!
  * body-parser
  * Copyright(c) 2014 Jonathan Ong
  * Copyright(c) 2014-2015 Douglas Christopher Wilson
@@ -272,4 +276,19 @@ See the Apache Version 2.0 License for specific language governing permissions
 and limitations under the License.
 ***************************************************************************** */
 
+/*! https://mths.be/utf8js v2.1.2 by @mathias */
+
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
+
+/**
+ * Wrapper for built-in http.js to emulate the browser XMLHttpRequest object.
+ *
+ * This can be used with JS designed for browsers to improve reuse of code and
+ * allow the use of existing libraries.
+ *
+ * Usage: include("XMLHttpRequest.js") and use XMLHttpRequest per W3C specs.
+ *
+ * @author Dan DeFelippi <dan@driverdan.com>
+ * @contributor David Ellis <d.f.ellis@ieee.org>
+ * @license MIT
+ */
