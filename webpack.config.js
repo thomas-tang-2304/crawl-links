@@ -19,4 +19,8 @@ module.exports = {
   resolve: {
     extensions: ["ts", ".js", ".json"],
   },
+  stats:{
+    errorDetails: true
+  },
+  mode: "production"
 };
