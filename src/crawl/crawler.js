@@ -7,7 +7,7 @@ const pptOptions = process.env.NODE_ENV
     headless: "new",
     waitForSelector: "body",
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: ["--no-sandbox", '--single-process', "--no-zygote", "--disable-setuid-sandbox"],
+    args: ["--no-sandbox","--no-zygote", "--disable-setuid-sandbox"],
   }
   : {
     waitForSelector: "body",
