@@ -25,10 +25,7 @@ const server = http.Server(app);
 const io = socketIo(server);
 
 app.use(
-  cors({
-    origin: `http://${process.env.ipAdd}:3000`, // Replace with your client's URL
-    rejectUnauthorized: true,
-  })
+  cors()
 );
 
 createRealtime(io)
