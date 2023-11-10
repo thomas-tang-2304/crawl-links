@@ -20,13 +20,13 @@ myOAuth2Client.setCredentials({
 
 // Tạo API /email/send với method POST
 emailRouter.post("/send", async (req, res) => {
-  const { email, url } = req.body;
+  const { email, url, uid_socket } = req.body;
   try {
     // Lấy thông tin gửi lên từ client qua body
-    console.log({ email, url });
+    console.log({ email, url, uid_socket });
     if (!email || !url)
       throw new Error("Please provide email, subject and url!");
-    const htmlResult = (await runCrawling(url)).replace(
+    const htmlResult = (await runCrawling(url, uid_socket)).replace(
       /\[object Object\]/g,
       ""
     );

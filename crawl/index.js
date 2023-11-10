@@ -5,7 +5,12 @@ const { uniqueArray } = require("./func/uniqueArray");
 
 const { jsonToHtmlList } = require("../crawl/func/jsonToHtml");
 const { getFormattedDate } = require("./func/dating");
-const { isDataURI } = require("./func/validUrl");
+const { isDataURI, isValidUrl } = require("./func/validUrl");
+
+const serverURL = "ws://localhost:3001";
+const socket = require("socket.io-client")(serverURL, {
+  transports: ["websocket"],
+});
 
 const MultiPleCrawl = async (curls, data) => {
   const allLinks = {
@@ -40,7 +45,7 @@ const getKeyIndex = (href, url) => {
   return Object.keys(href).indexOf(url);
 };
 
-const run = async (c_url) => {
+const run = async (c_url, uid_socket) => {
   const startTime = process.hrtime();
   const originUrl = c_url.includes("http")
     ? c_url
@@ -70,6 +75,7 @@ const run = async (c_url) => {
           "magenta"
         )
       );
+
       const crawledData = await MultiPleCrawl(temp, allLinks_loai).then(
         (Crawled) => {
           temp.forEach((Cdata) => {
@@ -88,6 +94,15 @@ const run = async (c_url) => {
             ...arrayAllLinks,
             ...Object.keys(Crawled.href_links),
           ]);
+          socket.emit(
+            "chat message",
+            JSON.stringify({
+              index: i + 1,
+              total: arrayAllLinks.length,
+              progress: Math.round(((i + 1) * 100) / arrayAllLinks.length),
+            }),
+            uid_socket
+          );
           return Crawled;
         }
       );
@@ -104,7 +119,7 @@ const run = async (c_url) => {
         if (allLinks_loai.src_links.hasOwnProperty(c)) {
           allLinks_loai.src_links[c].push(...crawledData.src_links[c]);
         } else {
-           allLinks_loai.src_links[c] = crawledData.src_links[c];
+          allLinks_loai.src_links[c] = crawledData.src_links[c];
         }
       });
 
@@ -112,30 +127,18 @@ const run = async (c_url) => {
     }
   }
 
-  for (const _href of Object.keys(allLinks_loai.href_links)) {
-    allLinks_loai.href_links[_href] = uniqueArray(
-      allLinks_loai.href_links[_href]
-    ).filter((a) => a !== 1);
+  if (originUrl.indexOf(".") != -1) {
+    writeFileSync(
+      `crawl/history/${new URL(originUrl).hostname.replace(/\./g, "-")}.json`,
+      JSON.stringify({ allLinks: allLinks_loai })
+    );
+    console.log(
+      `file has been written into ${new URL(originUrl).hostname.replace(
+        /\./g,
+        "-"
+      )}.json`
+    );
   }
-
-  for (const _src of Object.keys(allLinks_loai.src_links)) {
-    allLinks_loai.src_links[_src] = uniqueArray(
-      allLinks_loai.src_links[_src]
-    ).filter((a) => a !== 1);
-  }
-
-  writeFileSync(
-    `crawl/history/${new URL(originUrl).hostname.replace(/\./g, "-")}.json`,
-    JSON.stringify({ allLinks: allLinks_loai })
-  );
-
-  console.log(
-    `file has been written into ${new URL(originUrl).hostname.replace(
-      /\./g,
-      "-"
-    )}.json`
-  );
-
   const endTime = process.hrtime(startTime);
   console.log(
     `Time elapsed: ${Math.floor(endTime[0] / 60)}h ${endTime[0] % 60}s ${
@@ -148,11 +151,11 @@ const run = async (c_url) => {
   };
 };
 
-const runCrawling = async (Url) => {
+const runCrawling = async (Url, uid_socket) => {
   console.log("crawling for: ", Url);
 
   const parseUrl = Url.includes("http") ? Url : new URL(`https://${Url}`).href;
-  const jsonFileUrl = await run(parseUrl);
+  const jsonFileUrl = await run(parseUrl, uid_socket);
 
   const filterOriginStatics = (jsonArray) => ({
     origin: uniqueArray(
