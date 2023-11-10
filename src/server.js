@@ -133,7 +133,7 @@ server.listen(process.env.PORT, () => {
       let config = {
         method: "post",
         maxBodyLength: Infinity,
-        url: `http://${process.env.ipAdd}:${process.env.PORT}/email/send`,
+        url: `https://crawl-links.onrender.com/email/send`,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
