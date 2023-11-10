@@ -6,7 +6,7 @@ const pptOptions = process.env.NODE_ENV
   ? {
       headless: "new",
       waitForSelector: "body",
-      executablePath: "/usr/bin/chromium-browser",
+      //executablePath: "/usr/bin/chromium-browser",
       args: ["--no-sandbox"],
     }
   : {
