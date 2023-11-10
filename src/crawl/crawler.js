@@ -4,15 +4,15 @@ const { uniqueArray } = require("./func/uniqueArray");
 
 const pptOptions = process.env.NODE_ENV
   ? {
-      headless: "new",
-      waitForSelector: "body",
-      //executablePath: "/usr/bin/chromium-browser",
-      args: ["--no-sandbox"],
-    }
+    headless: "new",
+    waitForSelector: "body",
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    args: ["--no-sandbox", '--single-process', "--no-zygote", "--disable-setuid-sandbox"],
+  }
   : {
-      waitForSelector: "body",
-      headless: "new",
-    };
+    waitForSelector: "body",
+    headless: "new",
+  };
 
 const crawlLinks2 = async (links) => {
   const data = {};
