@@ -113,9 +113,9 @@ app.get("/", (req, res) => {
   res.send("Hello");
 });
 
-server.listen(process.env.PORT, process.env.ipAdd, () => {
+server.listen(process.env.PORT, () => {
   console.log(
-    `Server listening on http://${process.env.ipAdd}:${process.env.PORT}`
+    `Server listening on Port ${process.env.PORT}`
   );
   let intervalId; // Define a variable to hold the interval ID
 
