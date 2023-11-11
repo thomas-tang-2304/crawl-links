@@ -4,10 +4,10 @@ const { color } = require("./func/coloringLogger");
 const { uniqueArray } = require("./func/uniqueArray");
 const { readFileHistory } = require("../crawl/modules/readFileHistory");
 
-const randToken = require("rand-token");
 const { jsonToHtmlList } = require("../crawl/func/jsonToHtml");
 const { getFormattedDate } = require("./func/dating");
 const { isDataURI, isValidUrl } = require("./func/validUrl");
+const { measureTime } = require("./func/measure");
 
 const serverURL = "ws://localhost:3001";
 const socket = require("socket.io-client")(serverURL, {
@@ -48,6 +48,7 @@ const getKeyIndex = (href, url) => {
 };
 
 const run = async (c_url, uid_socket) => {
+  
   const originUrl = c_url.includes("http")
     ? c_url
     : new URL(`https://${c_url}`).href;
@@ -82,7 +83,7 @@ const run = async (c_url, uid_socket) => {
               `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
                 `${Math.round(
                   ((i + 1) * 100) / ALL_LINKS.length
-                )}%, index ${color(i, "green")}, total: ${
+                )}%, index ${color(i+1, "green")}, total: ${
                   ALL_LINKS.length
                 }`,
                 "green"
@@ -150,14 +151,12 @@ const run = async (c_url, uid_socket) => {
     data: { allLinks: allLinks_loai },
   };
 };
-// (async () => {
-//   console.log(await run("https://pt.phongkhamdakhoabuonmethuot.vn/"));
-// })();
+
 const runCrawling = async (Url, uid_socket) => {
   console.log("crawling for: ", Url);
 
   const parseUrl = Url.includes("http") ? Url : new URL(`https://${Url}`).href;
-  const jsonFileUrl = await run(parseUrl, uid_socket);
+  const jsonFileUrl = await measureTime(() => run(parseUrl, uid_socket));
 
   const filterOriginStatics = (jsonArray) => ({
     origin: uniqueArray(

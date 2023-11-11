@@ -28,7 +28,7 @@ app.use(
   cors()
 );
 
-createRealtime(io)
+createRealtime(io);
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));

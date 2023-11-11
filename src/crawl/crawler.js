@@ -4,15 +4,16 @@ const { uniqueArray } = require("./func/uniqueArray");
 
 const pptOptions = process.env.NODE_ENV
   ? {
-    headless: "new",
-    waitForSelector: "body",
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-    args: ["--no-sandbox","--no-zygote", "--disable-setuid-sandbox"],
-  }
+      headless: "new",
+      waitForSelector: "body",
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
+    }
   : {
-    waitForSelector: "body",
-    headless: "new",
-  };
+      waitForSelector: "body",
+      headless: false,
+      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
+    };
 
 const crawlLinks2 = async (links) => {
   const data = {};
@@ -42,7 +43,8 @@ const crawlLinks2 = async (links) => {
           request.continue();
         }
       });
-      await page.goto(url, { timeout: 0 });
+
+      await page.goto(url, { timeout: 20000, waitUntil: "load" });
 
       // await page.waitForSelector("a");
 
@@ -61,6 +63,8 @@ const crawlLinks2 = async (links) => {
 
         return validHrefs;
       });
+
+      // await page.waitForResponse((response) => console.log(response.status()));
 
       const srcs = await page.evaluate(() => {
         const links = Array.from(document.querySelectorAll("*"));
