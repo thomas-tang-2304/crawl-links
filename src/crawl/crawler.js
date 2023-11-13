@@ -11,7 +11,7 @@ const pptOptions = process.env.NODE_ENV
     }
   : {
       waitForSelector: "body",
-      headless: false,
+      headless: "new",
       args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
     };
 
@@ -25,9 +25,10 @@ const crawlLinks2 = async (links) => {
 
   await cluster.task(async ({ page, data: url }) => {
     data[url] = {
-      href_links: [],
-      src_links: [],
-    };
+      href_links: null,
+      src_links: null
+    }
+ 
     try {
       // Enable request interception
       await page.setRequestInterception(true);
@@ -44,47 +45,44 @@ const crawlLinks2 = async (links) => {
         }
       });
 
-      await page.goto(url, { timeout: 20000, waitUntil: "load" });
+      await page.goto(url, { timeout: 20000, waitUntil: "networkidle2" });
 
       // await page.waitForSelector("a");
 
-      const hrefs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("a"));
-        const validHrefs = [];
+      const validLinks = await page.evaluate(() => {
+        const href = Array.from(document.querySelectorAll("a"));
+        const src = Array.from(document.querySelectorAll("*:not(script)"));
+        const rs = {
+          src_links: [],
+          href_links: [],
+        };
 
-        links.forEach((link) => {
+        href.forEach((link) => {
           try {
             const parsedUrl = new URL(link.href);
-            validHrefs.push(parsedUrl.href);
+            rs.href_links.push(parsedUrl.href);
           } catch (err) {
             console.log(err);
           }
         });
 
-        return validHrefs;
+        src.forEach((link) => {
+          try {
+            const parsedUrl = new URL(link.src);
+            rs.src_links.push(parsedUrl.href);
+          } catch (err) {
+            console.log(err);
+          }
+        });
+
+        return rs;
       });
 
       // await page.waitForResponse((response) => console.log(response.status()));
 
-      const srcs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("*"));
-        const validHrefs = [];
-
-        links.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.src);
-            validHrefs.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
-
-        return validHrefs;
-      });
-      data[url].href_links = [];
-      data[url].href_links.push(...uniqueArray(hrefs));
-      data[url].src_links = [];
-      data[url].src_links.push(...uniqueArray(srcs));
+      data[url].href_links = uniqueArray(validLinks.href_links);
+      data[url].src_links = uniqueArray(validLinks.src_links);
+      // console.log(data);
     } catch (err) {
       console.log(err);
     } finally {

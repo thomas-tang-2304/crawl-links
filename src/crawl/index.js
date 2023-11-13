@@ -23,15 +23,27 @@ const MultiPleCrawl = async (curls, data) => {
     .then((crawledData) => {
       for (const curl of Object.keys(crawledData)) {
         for (const curl2 of crawledData[curl].href_links) {
-          allLinks.href_links[curl2] = [
-            getKeyIndex(data ? data.href_links : allLinks.href_links, curl),
-          ];
+          if (allLinks.href_links.hasOwnProperty(curl2)) {
+            allLinks.href_links[curl2].push(
+              getKeyIndex(data ? data.href_links : allLinks.href_links, curl)
+            );
+          } else {
+            allLinks.href_links[curl2] = [
+              getKeyIndex(data ? data.href_links : allLinks.href_links, curl),
+            ];
+          }
         }
 
         for (const curl3 of crawledData[curl].src_links) {
-          allLinks.src_links[curl3] = [
-            getKeyIndex(data ? data.href_links : allLinks.href_links, curl),
-          ];
+          if (allLinks.src_links.hasOwnProperty(curl3)) {
+            allLinks.src_links[curl3].push(
+              getKeyIndex(data ? data.href_links : allLinks.href_links, curl)
+            );
+          } else {
+            allLinks.src_links[curl3] = [
+              getKeyIndex(data ? data.href_links : allLinks.href_links, curl),
+            ];
+          }
         }
       }
 
@@ -48,7 +60,6 @@ const getKeyIndex = (href, url) => {
 };
 
 const run = async (c_url, uid_socket) => {
-  
   const originUrl = c_url.includes("http")
     ? c_url
     : new URL(`https://${c_url}`).href;
@@ -57,18 +68,15 @@ const run = async (c_url, uid_socket) => {
   let allLinks_loai = await MultiPleCrawl([c_url]);
 
   let temp = [];
-  // let otherLinks = [];
   for (let i = 0; i < Object.keys(allLinks_loai.href_links).length; i++) {
-    let ALL_LINKS = Object.keys(allLinks_loai.href_links)
+
+    let ALL_LINKS = Object.keys(allLinks_loai.href_links);
     const limit = parseInt(ALL_LINKS.length / 20);
+
     if (ALL_LINKS[i]?.startsWith(originUrl) && !ALL_LINKS[i].includes("#"))
       temp.push(ALL_LINKS[i]);
-    // else otherLinks.push(Object.keys(allLinks_loai.href_links)[i]);
 
-    if (
-      temp.length >= limit ||
-      i + 1 >= ALL_LINKS.length
-    ) {
+    if (temp.length >= limit || i + 1 >= ALL_LINKS.length) {
       console.log(
         color(
           `${temp.length} urls have been add to queue ------------------------------ `,
@@ -83,7 +91,7 @@ const run = async (c_url, uid_socket) => {
               `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
                 `${Math.round(
                   ((i + 1) * 100) / ALL_LINKS.length
-                )}%, index ${color(i+1, "green")}, total: ${
+                )}%, index ${color(i + 1, "green")}, total: ${
                   ALL_LINKS.length
                 }`,
                 "green"
@@ -103,10 +111,14 @@ const run = async (c_url, uid_socket) => {
         }
       );
 
+
       Object.keys(crawledData.href_links).forEach((c) => {
         if (!c.includes("#")) {
           if (allLinks_loai.href_links.hasOwnProperty(c))
-            allLinks_loai.href_links[c] = uniqueArray([...allLinks_loai.href_links[c],...crawledData.href_links[c]]);
+            allLinks_loai.href_links[c] = uniqueArray([
+              ...allLinks_loai.href_links[c],
+              ...crawledData.href_links[c],
+            ]);
           else {
             allLinks_loai.href_links[c] = crawledData.href_links[c];
           }
@@ -117,7 +129,10 @@ const run = async (c_url, uid_socket) => {
         // console.log(allLinks_loai.href_links[c]);
         if (!c.includes("#")) {
           if (allLinks_loai.src_links.hasOwnProperty(c)) {
-            allLinks_loai.src_links[c] = uniqueArray([...allLinks_loai.src_links[c],...crawledData.src_links[c]]);
+            allLinks_loai.src_links[c] = uniqueArray([
+              ...allLinks_loai.src_links[c],
+              ...crawledData.src_links[c],
+            ]);
           } else {
             allLinks_loai.src_links[c] = crawledData.src_links[c];
           }
@@ -125,7 +140,6 @@ const run = async (c_url, uid_socket) => {
       });
 
       temp = [];
-      // otherLinks = [];
     }
   }
 
@@ -136,7 +150,7 @@ const run = async (c_url, uid_socket) => {
         "-"
       )}.json`,
       JSON.stringify({
-        allLinks: allLinks_loai
+        allLinks: allLinks_loai,
       })
     );
     console.log(
@@ -193,9 +207,5 @@ const runCrawling = async (Url, uid_socket) => {
     src: filterOriginStatics(Object.keys(jsonFileUrl.data.allLinks.src_links)),
   });
 };
-
-// (async() => {
-//   await runCrawling("https://phongkhambenhxahoidaklak.vn/");
-// })();
 
 module.exports = { runCrawling };
