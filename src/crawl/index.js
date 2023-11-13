@@ -109,33 +109,35 @@ const run = async (c_url, uid_socket) => {
           return Crawled;
         }
       );
-
-      Object.keys(crawledData?.href_links)?.forEach((c) => {
-        if (!c.includes("#")) {
-          if (allLinks_loai.href_links.hasOwnProperty(c))
-            allLinks_loai.href_links[c] = uniqueArray([
-              ...allLinks_loai.href_links[c],
-              ...crawledData.href_links[c],
-            ]);
-          else {
-            allLinks_loai.href_links[c] = crawledData.href_links[c];
+      if (crawledData?.href_links) {
+        Object.keys(crawledData?.href_links)?.forEach((c) => {
+          if (!c.includes("#")) {
+            if (allLinks_loai.href_links.hasOwnProperty(c))
+              allLinks_loai.href_links[c] = uniqueArray([
+                ...allLinks_loai.href_links[c],
+                ...crawledData.href_links[c],
+              ]);
+            else {
+              allLinks_loai.href_links[c] = crawledData.href_links[c];
+            }
           }
-        }
-      });
-
-      Object.keys(crawledData?.src_links)?.forEach((c) => {
-        // console.log(allLinks_loai.href_links[c]);
-        if (!c.includes("#")) {
-          if (allLinks_loai.src_links.hasOwnProperty(c)) {
-            allLinks_loai.src_links[c] = uniqueArray([
-              ...allLinks_loai.src_links[c],
-              ...crawledData.src_links[c],
-            ]);
-          } else {
-            allLinks_loai.src_links[c] = crawledData.src_links[c];
+        });
+      }
+      if (crawledData?.src_links) {
+        Object.keys(crawledData?.src_links)?.forEach((c) => {
+          // console.log(allLinks_loai.href_links[c]);
+          if (!c.includes("#")) {
+            if (allLinks_loai.src_links.hasOwnProperty(c)) {
+              allLinks_loai.src_links[c] = uniqueArray([
+                ...allLinks_loai.src_links[c],
+                ...crawledData.src_links[c],
+              ]);
+            } else {
+              allLinks_loai.src_links[c] = crawledData.src_links[c];
+            }
           }
-        }
-      });
+        });
+      }
 
       temp = [];
     }
