@@ -69,7 +69,6 @@ const run = async (c_url, uid_socket) => {
 
   let temp = [];
   for (let i = 0; i < Object.keys(allLinks_loai.href_links).length; i++) {
-
     let ALL_LINKS = Object.keys(allLinks_loai.href_links);
     const limit = parseInt(ALL_LINKS.length / 20);
 
@@ -111,8 +110,7 @@ const run = async (c_url, uid_socket) => {
         }
       );
 
-
-      Object.keys(crawledData.href_links).forEach((c) => {
+      Object.keys(crawledData?.href_links)?.forEach((c) => {
         if (!c.includes("#")) {
           if (allLinks_loai.href_links.hasOwnProperty(c))
             allLinks_loai.href_links[c] = uniqueArray([
@@ -125,7 +123,7 @@ const run = async (c_url, uid_socket) => {
         }
       });
 
-      Object.keys(crawledData.src_links).forEach((c) => {
+      Object.keys(crawledData?.src_links)?.forEach((c) => {
         // console.log(allLinks_loai.href_links[c]);
         if (!c.includes("#")) {
           if (allLinks_loai.src_links.hasOwnProperty(c)) {
