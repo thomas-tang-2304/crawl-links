@@ -1,34 +1,17 @@
 // const puppeteer = require("puppeteer");
-const { Cluster } = require("puppeteer-cluster");
+
 const { uniqueArray } = require("./func/uniqueArray");
 
-const pptOptions = process.env.NODE_ENV
-  ? {
-      headless: "new",
-      waitForSelector: "body",
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
-    }
-  : {
-      waitForSelector: "body",
-      headless: "new",
-      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
-    };
 
-const crawlLinks2 = async (links) => {
+const crawlLinks2 = async (links, cluster) => {
   const data = {};
-  const cluster = await Cluster.launch({
-    concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 50,
-    puppeteerOptions: pptOptions,
-  });
 
   await cluster.task(async ({ page, data: url }) => {
     data[url] = {
       href_links: null,
-      src_links: null
-    }
- 
+      src_links: null,
+    };
+
     try {
       // Enable request interception
       await page.setRequestInterception(true);
@@ -45,7 +28,7 @@ const crawlLinks2 = async (links) => {
         }
       });
 
-      await page.goto(url, { timeout: 20000, waitUntil: "networkidle2" });
+      await page.goto(url, { timeout: 30000, waitUntil: "networkidle2" });
 
       // await page.waitForSelector("a");
 
@@ -56,24 +39,25 @@ const crawlLinks2 = async (links) => {
           src_links: [],
           href_links: [],
         };
+        (async () => {
+          href.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.href);
+              rs.href_links.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
 
-        href.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.href);
-            rs.href_links.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
-
-        src.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.src);
-            rs.src_links.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
+          src.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.src);
+              rs.src_links.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
+        })();
 
         return rs;
       });
@@ -87,18 +71,15 @@ const crawlLinks2 = async (links) => {
       console.log(err);
     } finally {
       await page.close();
-      // Disable request interception when done
       await page.setRequestInterception(false);
     }
   });
   for (const link of links) {
     cluster.queue(link);
   }
-
-  // many more pages
-
   await cluster.idle();
-  await cluster.close();
+
+  
 
   return data;
 };

@@ -2,16 +2,36 @@ const { writeFileSync } = require("fs");
 const { crawlLinks2 } = require("./crawler");
 const { color } = require("./func/coloringLogger");
 const { uniqueArray } = require("./func/uniqueArray");
-const { readFileHistory } = require("../crawl/modules/readFileHistory");
 
 const { jsonToHtmlList } = require("../crawl/func/jsonToHtml");
 const { getFormattedDate } = require("./func/dating");
 const { isDataURI, isValidUrl } = require("./func/validUrl");
 const { measureTime } = require("./func/measure");
+const { Cluster } = require("puppeteer-cluster");
 
 const serverURL = "ws://localhost:3001";
+
 const socket = require("socket.io-client")(serverURL, {
   transports: ["websocket"],
+});
+
+const pptOptions = process.env.NODE_ENV
+  ? {
+      headless: "new",
+      waitForSelector: "body",
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
+    }
+  : {
+      waitForSelector: "body",
+      headless: "new",
+      args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
+    };
+
+const cluster = Cluster.launch({
+  concurrency: Cluster.CONCURRENCY_PAGE,
+  maxConcurrency: 50,
+  puppeteerOptions: pptOptions,
 });
 
 const MultiPleCrawl = async (curls, data) => {
@@ -19,7 +39,7 @@ const MultiPleCrawl = async (curls, data) => {
     href_links: {},
     src_links: {},
   };
-  const crawledAllLinks = await crawlLinks2(curls)
+  const crawledAllLinks = await crawlLinks2(curls, await cluster)
     .then((crawledData) => {
       for (const curl of Object.keys(crawledData)) {
         for (const curl2 of crawledData[curl].href_links) {
@@ -63,17 +83,27 @@ const run = async (c_url, uid_socket) => {
   const originUrl = c_url.includes("http")
     ? c_url
     : new URL(`https://${c_url}`).href;
+
   console.log("origin: ", originUrl);
 
   let allLinks_loai = await MultiPleCrawl([c_url]);
+  let crawlableLinks = Object.keys(allLinks_loai.href_links).filter(
+    (thisLink) =>
+      thisLink?.startsWith(originUrl) &&
+      !thisLink.includes("#") &&
+      isValidUrl(thisLink)
+        ? new URL(thisLink).origin + new URL(thisLink).pathname == thisLink
+        : false
+  );
 
   let temp = [];
-  for (let i = 0; i < Object.keys(allLinks_loai.href_links).length; i++) {
-    let ALL_LINKS = Object.keys(allLinks_loai.href_links);
+  for (let i = 0; i < crawlableLinks.length; ) {
+    let ALL_LINKS = crawlableLinks;
+
     const limit = parseInt(ALL_LINKS.length / 20);
 
-    if (ALL_LINKS[i]?.startsWith(originUrl) && !ALL_LINKS[i].includes("#"))
-      temp.push(ALL_LINKS[i]);
+    
+      temp = ALL_LINKS.slice(i, i+limit);
 
     if (temp.length >= limit || i + 1 >= ALL_LINKS.length) {
       console.log(
@@ -109,37 +139,39 @@ const run = async (c_url, uid_socket) => {
           return Crawled;
         }
       );
-      if (crawledData?.href_links) {
-        Object.keys(crawledData?.href_links)?.forEach((c) => {
-          if (!c.includes("#")) {
-            if (allLinks_loai.href_links.hasOwnProperty(c))
-              allLinks_loai.href_links[c] = uniqueArray([
-                ...allLinks_loai.href_links[c],
-                ...crawledData.href_links[c],
-              ]);
-            else {
-              allLinks_loai.href_links[c] = crawledData.href_links[c];
+      async function processLinks(links, targetLinks) {
+        Object.entries(links).map(async ([key, value]) => {
+          if (!key.includes("#")) {
+            if (targetLinks.hasOwnProperty(key)) {
+              targetLinks[key] = uniqueArray([...targetLinks[key], ...value]);
+            } else {
+              targetLinks[key] = value;
             }
           }
         });
       }
-      if (crawledData?.src_links) {
-        Object.keys(crawledData?.src_links)?.forEach((c) => {
-          // console.log(allLinks_loai.href_links[c]);
-          if (!c.includes("#")) {
-            if (allLinks_loai.src_links.hasOwnProperty(c)) {
-              allLinks_loai.src_links[c] = uniqueArray([
-                ...allLinks_loai.src_links[c],
-                ...crawledData.src_links[c],
-              ]);
-            } else {
-              allLinks_loai.src_links[c] = crawledData.src_links[c];
-            }
-          }
-        });
+      if (crawledData?.href_links && crawledData?.src_links) {
+        // Create an array of promises for processing href_links and src_links
+        const promises = [
+          processLinks(crawledData.href_links, allLinks_loai.href_links),
+          processLinks(crawledData.src_links, allLinks_loai.src_links),
+          (crawlableLinks = uniqueArray([
+            ...crawlableLinks,
+            ...Object.keys(allLinks_loai.href_links),
+          ]).filter((thisLink) =>
+            thisLink.startsWith(originUrl) && isValidUrl(thisLink)
+              ? new URL(thisLink).origin + new URL(thisLink).pathname ==
+                thisLink
+              : false
+          )),
+        ];
+
+        // Wait for both promises to be resolved
+        await Promise.all(promises);
       }
 
       temp = [];
+      i+=limit;
     }
   }
 
