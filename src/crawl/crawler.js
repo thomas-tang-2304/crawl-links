@@ -11,7 +11,7 @@ const pptOptions = process.env.NODE_ENV
     }
   : {
       waitForSelector: "body",
-      headless: false,
+      headless: "new",
       args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
     };
 
