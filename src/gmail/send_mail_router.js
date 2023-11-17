@@ -51,7 +51,7 @@ emailRouter.post("/send", async (req, res) => {
 
     const mailOptions = {
       to: email, // Gửi đến ai?
-      subject: `Kết quả trả về từ tên miền crawl.khangtrieu.com cho trang web ${url}`, // Tiêu đề email
+      subject: `Kết quả trả về từ tên miền ${process.env.DOMAIN_NAME}:${process.env.PORT} cho trang web ${url}`, // Tiêu đề email
       html: htmlResult, // Nội dung email
     };
 

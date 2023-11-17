@@ -1,5 +1,5 @@
 // const puppeteer = require("puppeteer");
-const { Cluster } = require("puppeteer-cluster");
+
 const { uniqueArray } = require("./func/uniqueArray");
 
 const pptOptions = process.env.NODE_ENV
@@ -15,19 +15,15 @@ const pptOptions = process.env.NODE_ENV
       args: ["--no-sandbox", "--no-zygote", "--disable-setuid-sandbox"],
     };
 
-const crawlLinks2 = async (links) => {
+const crawlLinks2 = async (links, cluster) => {
   const data = {};
-  const cluster = await Cluster.launch({
-    concurrency: Cluster.CONCURRENCY_PAGE,
-    maxConcurrency: 50,
-    puppeteerOptions: pptOptions,
-  });
 
   await cluster.task(async ({ page, data: url }) => {
     data[url] = {
-      href_links: [],
-      src_links: [],
+      href_links: null,
+      src_links: null,
     };
+
     try {
       // Enable request interception
       await page.setRequestInterception(true);
@@ -44,63 +40,58 @@ const crawlLinks2 = async (links) => {
         }
       });
 
-      await page.goto(url, { timeout: 20000, waitUntil: "load" });
+      await page.goto(url, { timeout: 30000, waitUntil: "networkidle2" });
 
       // await page.waitForSelector("a");
 
-      const hrefs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("a"));
-        const validHrefs = [];
+      const validLinks = await page.evaluate(() => {
+        const href = Array.from(document.querySelectorAll("a"));
+        const src = Array.from(document.querySelectorAll("*:not(script)"));
+        const rs = {
+          src_links: [],
+          href_links: [],
+        };
+        (async () => {
+          href.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.href);
+              rs.href_links.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
 
-        links.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.href);
-            validHrefs.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
+          src.forEach((link) => {
+            try {
+              const parsedUrl = new URL(link.src);
+              rs.src_links.push(parsedUrl.href);
+            } catch (err) {
+              console.log(err);
+            }
+          });
+        })();
 
-        return validHrefs;
+        return rs;
       });
 
       // await page.waitForResponse((response) => console.log(response.status()));
 
-      const srcs = await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll("*"));
-        const validHrefs = [];
-
-        links.forEach((link) => {
-          try {
-            const parsedUrl = new URL(link.src);
-            validHrefs.push(parsedUrl.href);
-          } catch (err) {
-            console.log(err);
-          }
-        });
-
-        return validHrefs;
-      });
-      data[url].href_links = [];
-      data[url].href_links.push(...uniqueArray(hrefs));
-      data[url].src_links = [];
-      data[url].src_links.push(...uniqueArray(srcs));
+      data[url].href_links = uniqueArray(validLinks.href_links);
+      data[url].src_links = uniqueArray(validLinks.src_links);
+      // console.log(data);
     } catch (err) {
       console.log(err);
     } finally {
       await page.close();
-      // Disable request interception when done
       await page.setRequestInterception(false);
     }
   });
   for (const link of links) {
     cluster.queue(link);
   }
-
-  // many more pages
-
   await cluster.idle();
-  await cluster.close();
+
+  
 
   return data;
 };
