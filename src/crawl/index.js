@@ -78,6 +78,8 @@ const MultiPleCrawl = async (curls, data) => {
 const getKeyIndex = (href, url) => {
   return Object.keys(href).indexOf(url);
 };
+const checkCrawlabledLinks = (thisLink, originUrl) =>
+  thisLink?.startsWith(originUrl) && !thisLink.includes("#");
 
 const run = async (c_url, uid_socket) => {
   const originUrl = c_url.includes("http")
@@ -88,12 +90,7 @@ const run = async (c_url, uid_socket) => {
 
   let allLinks_loai = await MultiPleCrawl([c_url]);
   let crawlableLinks = Object.keys(allLinks_loai.href_links).filter(
-    (thisLink) =>
-      thisLink?.startsWith(originUrl) &&
-      !thisLink.includes("#") &&
-      isValidUrl(thisLink)
-        ? new URL(thisLink).origin + new URL(thisLink).pathname == thisLink
-        : false
+    (thisLink) => checkCrawlabledLinks(thisLink, originUrl)
   );
 
   let temp = [];
@@ -102,78 +99,76 @@ const run = async (c_url, uid_socket) => {
 
     const limit = parseInt(ALL_LINKS.length / 20);
 
-    
-      temp = ALL_LINKS.slice(i, i+limit);
+    temp =
+      i + limit < ALL_LINKS.length
+        ? ALL_LINKS.slice(i, i + limit)
+        : ALL_LINKS.slice(i);
 
-    if (temp.length >= limit || i + 1 >= ALL_LINKS.length) {
-      console.log(
-        color(
-          `${temp.length} urls have been add to queue ------------------------------ `,
-          "magenta"
-        )
-      );
+    // if (temp.length >= limit || i + 1 >= ALL_LINKS.length) {
+    console.log(
+      color(
+        `${temp.length} urls have been add to queue ------------------------------ `,
+        "magenta"
+      )
+    );
 
-      const crawledData = await MultiPleCrawl(temp, allLinks_loai).then(
-        (Crawled) => {
-          temp.forEach((Cdata) => {
-            console.log(
-              `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
-                `${Math.round(
-                  ((i + 1) * 100) / ALL_LINKS.length
-                )}%, index ${color(i + 1, "green")}, total: ${
-                  ALL_LINKS.length
-                }`,
-                "green"
-              )}`
-            );
-          });
-          socket.emit(
-            "chat message",
-            JSON.stringify({
-              total: ALL_LINKS.length,
-              index: i + 1,
-              progress: Math.round(((i + 1) * 100) / ALL_LINKS.length),
-            }),
-            uid_socket
+    const crawledData = await MultiPleCrawl(temp, allLinks_loai).then(
+      (Crawled) => {
+        temp.forEach((Cdata) => {
+          console.log(
+            `crawled from URL: ${color(`${Cdata}`, "cyan")} completed ${color(
+              `${Math.round(
+                ((i + 1) * 100) / ALL_LINKS.length
+              )}%, index ${color(i + 1, "green")}, total: ${ALL_LINKS.length}`,
+              "green"
+            )}`
           );
-          return Crawled;
-        }
-      );
-      async function processLinks(links, targetLinks) {
-        Object.entries(links).map(async ([key, value]) => {
-          if (!key.includes("#")) {
-            if (targetLinks.hasOwnProperty(key)) {
-              targetLinks[key] = uniqueArray([...targetLinks[key], ...value]);
-            } else {
-              targetLinks[key] = value;
-            }
-          }
         });
+        socket.emit(
+          "chat message",
+          JSON.stringify({
+            total: ALL_LINKS.length,
+            index: i + 1,
+            progress: Math.round(((i + 1) * 100) / ALL_LINKS.length),
+          }),
+          uid_socket
+        );
+        return Crawled;
       }
-      if (crawledData?.href_links && crawledData?.src_links) {
-        // Create an array of promises for processing href_links and src_links
-        const promises = [
-          processLinks(crawledData.href_links, allLinks_loai.href_links),
-          processLinks(crawledData.src_links, allLinks_loai.src_links),
-          (crawlableLinks = uniqueArray([
-            ...crawlableLinks,
-            ...Object.keys(allLinks_loai.href_links),
-          ]).filter((thisLink) =>
-            thisLink.startsWith(originUrl) && isValidUrl(thisLink)
-              ? new URL(thisLink).origin + new URL(thisLink).pathname ==
-                thisLink
-              : false
-          )),
-        ];
-
-        // Wait for both promises to be resolved
-        await Promise.all(promises);
-      }
-
-      temp = [];
-      i+=limit;
+    );
+    async function processLinks(links, targetLinks) {
+      Object.entries(links).map(async ([key, value]) => {
+        if (!key.includes("#")) {
+          if (targetLinks.hasOwnProperty(key)) {
+            targetLinks[key] = uniqueArray([...targetLinks[key], ...value]);
+          } else {
+            targetLinks[key] = value;
+          }
+        }
+      });
     }
+    if (crawledData?.href_links && crawledData?.src_links) {
+      // Create an array of promises for processing href_links and src_links
+      const promises = [
+        processLinks(crawledData.href_links, allLinks_loai.href_links),
+        processLinks(crawledData.src_links, allLinks_loai.src_links),
+      ];
+
+      // Wait for both promises to be resolved
+      await Promise.all(promises);
+    }
+
+    crawlableLinks = uniqueArray([
+      ...Object.keys(allLinks_loai.href_links),
+      ...crawlableLinks,
+    ]).filter((thisLink) => checkCrawlabledLinks(thisLink, originUrl));
+
+    temp = [];
+    i += limit;
+    // }
   }
+
+  console.log(crawlableLinks.length);
 
   if (originUrl.indexOf(".") != -1) {
     writeFileSync(
