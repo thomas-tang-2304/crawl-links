@@ -100,9 +100,9 @@ const run = async (c_url, uid_socket) => {
     const limit = parseInt(ALL_LINKS.length / 20);
 
     temp =
-      i + limit < ALL_LINKS.length
-        ? ALL_LINKS.slice(i, i + limit)
-        : ALL_LINKS.slice(i);
+      
+        ALL_LINKS.slice(i, i + limit)
+
 
     // if (temp.length >= limit || i + 1 >= ALL_LINKS.length) {
     console.log(
@@ -164,7 +164,7 @@ const run = async (c_url, uid_socket) => {
     ]).filter((thisLink) => checkCrawlabledLinks(thisLink, originUrl));
 
     temp = [];
-    i += limit;
+   i + limit < ALL_LINKS.length ? (i += limit) : (i += (ALL_LINKS.length - i));
     // }
   }
 

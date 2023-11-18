@@ -90,9 +90,6 @@ const crawlLinks2 = async (links, cluster) => {
     cluster.queue(link);
   }
   await cluster.idle();
-
-  
-
   return data;
 };
 
