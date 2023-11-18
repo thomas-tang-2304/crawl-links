@@ -1,7 +1,8 @@
 const createRealtime = (io) => {
 
     io.on("connection", (socket) => {
-      console.log("A user connected.");
+      
+      console.log("A user connected. ID: ", socket.id);
     
       socket.on("chat message", (msg, uid) => {
         // Broadcast the message to all connected clients.
@@ -10,8 +11,10 @@ const createRealtime = (io) => {
     
       socket.on("disconnect", () => {
         console.log("A user disconnected.");
+        
       });
     });
+    // console.log(io);
 }
 
 module.exports = {createRealtime}

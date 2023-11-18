@@ -16,6 +16,7 @@ configEnv();
 const emailRouter = require("./gmail/send_mail_router");
 const { readFileHistory } = require("./crawl/modules/readFileHistory");
 const { createRealtime } = require("./io");
+const { crawlWebsite } = require("./crawl/cheerio/ch");
 
 // Declare requestQueue
 const queueLinks = [];
@@ -23,10 +24,8 @@ const queueLinks = [];
 const app = express();
 const server = http.Server(app);
 const io = socketIo(server);
-
-app.use(
-  cors()
-);
+// io.set("heartbeat timeout", 1000);
+app.use(cors());
 
 createRealtime(io);
 
@@ -50,7 +49,13 @@ app.post("/crawl-links", async function (req, res) {
       res.status(400).send("Có lỗi khi gửi dữ liệu");
     }
 
-    queueLinks.push({ email, url, uid_socket });
+    crawlWebsite(url, uid_socket)
+      .then((result) => {
+        console.log("Crawling completed:", result);
+      })
+      .catch((error) => {
+        console.error("Error during crawling:", error);
+      });
 
     res.status(200).send("Add queue successfully");
   } catch (err) {
@@ -99,24 +104,12 @@ app.post("/find", async function (req, res) {
   }
 });
 
-app.get("/count", async (req, res) => {
-  res.write("21");
-  setTimeout(() => {
-    res.write("2");
-  }, 3000);
-  res.end();
-});
-app.get("/", (req, res) => {
-  res.send("Hello");
-});
-
 server.listen(process.env.PORT, () => {
-  console.log(
-    `Server listening on Port ${process.env.PORT}`
-  );
+  console.log(`Server listening on Port ${process.env.PORT}`);
   let intervalId; // Define a variable to hold the interval ID
 
   async function processQueue() {
+    // console.log("fasfsaf");
     if (queueLinks.length > 0) {
       clearInterval(intervalId);
 
@@ -124,13 +117,13 @@ server.listen(process.env.PORT, () => {
         email: queueLinks[0].email,
         // subject: "hehe",
         url: queueLinks[0].url,
-        uid_socket: queueLinks[0].uid_socket
+        uid_socket: queueLinks[0].uid_socket,
       });
 
       let config = {
         method: "post",
         maxBodyLength: Infinity,
-        url: `https://crawl-links.onrender.com/email/send`,
+        url: `http://localhost:3001/email/send`,
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -154,7 +147,6 @@ server.listen(process.env.PORT, () => {
         }, 5000);
       }
     }
-
   }
 
   intervalId = setInterval(processQueue, 1000);
