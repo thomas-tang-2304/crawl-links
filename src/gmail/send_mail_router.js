@@ -3,6 +3,8 @@ const nodemailer = require("nodemailer");
 const { OAuth2Client } = require("google-auth-library");
 const { runCrawling } = require("../crawl");
 const { configEnv } = require("../configEnv");
+const { crawlWebsite } = require("../crawl/cheerio/ch");
+const { measureTime } = require("../crawl/func/measure");
 
 const emailRouter = express.Router();
 
@@ -21,15 +23,15 @@ myOAuth2Client.setCredentials({
 // Tạo API /email/send với method POST
 emailRouter.post("/send", async (req, res) => {
   const { email, url, uid_socket } = req.body;
+  const parseUrl = url.includes("http") ? url : new URL(`https://${url}`).href;
   try {
     // Lấy thông tin gửi lên từ client qua body
     console.log({ email, url, uid_socket });
     if (!email || !url)
       throw new Error("Please provide email, subject and url!");
-    const htmlResult = (await runCrawling(url, uid_socket)).replace(
-      /\[object Object\]/g,
-      ""
-    );
+    const htmlResult = JSON.stringify(
+      await measureTime(() => crawlWebsite(parseUrl, uid_socket))
+    ).replace(/\[object Object\]/g, "");
 
     const myAccessTokenObject = await myOAuth2Client.getAccessToken();
 
