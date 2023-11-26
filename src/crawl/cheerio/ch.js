@@ -13,8 +13,10 @@ const {
 } = require("./utils");
 
 
-// Function to fetch and parse HTML
-
+const serverURL = "ws://localhost:3001";
+const socket = require("socket.io-client")(serverURL, {
+  transports: ["websocket"],
+});
 
 
 async function fetchAndParseHTML(url) {
@@ -86,7 +88,7 @@ function delay(ms) {
 }
 
 // Function to crawl a website
-async function crawlWebsite(startUrl) {
+async function crawlWebsite(startUrl, uid_socket) {
   const originUrl = startUrl.includes("http")
     ? startUrl
     : new URL(`https://${startUrl}`).href;
@@ -103,6 +105,7 @@ async function crawlWebsite(startUrl) {
   );
   // console.log(queue);
   let i = 0;
+  let lastLength = 0;
   while (CRAWLABLE_LINKS.length > 0) {
     const { url, depth } = CRAWLABLE_LINKS.shift();
 
@@ -132,6 +135,20 @@ async function crawlWebsite(startUrl) {
       const $ = await fetchAndParseHTML(url);
       if ($) {
         const links = extractLinks($, originUrl);
+
+         socket.emit(
+           "chat message",
+           JSON.stringify({
+             total: UNIQUE_CRAWLABLE_LINKS.length,
+             index: i + 1,
+             progress: Math.round(
+               ((i + 1) * 100) / UNIQUE_CRAWLABLE_LINKS.length
+             ),
+             increase: UNIQUE_CRAWLABLE_LINKS.length - lastLength,
+             crawling_for: UNIQUE_CRAWLABLE_LINKS.slice(-1)[0].url,
+           }),
+           uid_socket
+         );
         Promise.all([
           links.href_links.forEach((link) => {
             // You can process the link here\
@@ -170,6 +187,8 @@ async function crawlWebsite(startUrl) {
             }
           }),
         ]);
+
+        lastLength = UNIQUE_CRAWLABLE_LINKS.length;
       }
       if (i % 100 == 0) {
         console.log(queue.href_links.length);

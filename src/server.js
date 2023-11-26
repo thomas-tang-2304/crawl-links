@@ -4,23 +4,26 @@ const http = require("http");
 
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const socketIo = require("socket.io");
 
 const { configEnv } = require("./configEnv");
+const { mapParentLink } = require("./crawl/cheerio/utils");
+const {createRealtime} = require("./io")
 
 configEnv();
 
 // Routers
 const emailRouter = require("./routes/gmail/send_mail_router");
 const { readFileHistory } = require("./crawl/modules/readFileHistory");
-const { mapParentLink } = require("./crawl/cheerio/utils");
 
 
 const app = express();
-// const server = http.Server(app);
+const server = http.Server(app);
+const io = socketIo(server);
 
 app.use(cors());
 
-// createRealtime(io);
+createRealtime(io);
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -72,7 +75,7 @@ app.post("/find", async function (req, res) {
   }
 });
 
-app.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, () => {
   console.log(`Server listening on Port ${process.env.PORT}`);
   
 });
