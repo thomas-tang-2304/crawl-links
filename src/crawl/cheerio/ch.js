@@ -1,4 +1,3 @@
-
 const { parseFromString } = require("dom-parser");
 const { color } = require("../func/coloringLogger");
 const { uniqueObjectsArray } = require("../func/uniqueArray");
@@ -12,72 +11,93 @@ const {
   filterOriginStatics,
 } = require("./utils");
 
-
 // Function to fetch and parse HTML
 
-
-
-async function fetchAndParseHTML(url) {
+async function fetchAndParseHTML(url, queue) {
+  const indexOfCrawledUrl = queue.href_links.findIndex((o) => o.url == url);
   try {
     const response = await (
-      await fetch(url, {timeout:5000}).then((result) => {
-        // console.log("response.status =", result.status);
+      await fetch(url, { timeout: 0 }).then((result) => {
+        console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
 
         return result;
       })
     ).text();
+    if (indexOfCrawledUrl)
+      queue.href_links[indexOfCrawledUrl].crawl_status = "successfully";
     return parseFromString(response);
   } catch (error) {
+    // console.log("response.status =", error.status);
     console.error("Error fetching URL:", url);
     console.error(error.message);
+if (indexOfCrawledUrl)
+  queue.href_links[indexOfCrawledUrl].crawl_status = "failed";
+    
     return null;
   }
 }
 
+function processElements($, tagName, attributeName, origin) {
+  const linksArray = [];
+  return new Promise((resolve) => {
+    const elements = $?.getElementsByTagName(tagName) ?? [];
+    // console.log(elements);
+    elements?.forEach((element) => {
+      const attributeIndex = element?.attributes?.findIndex(
+        (d) => d?.name === attributeName
+      );
+      const attributeValue = element?.attributes[attributeIndex]?.value;
+
+      if (attributeValue) {
+        const link =
+          !attributeValue.startsWith("https://") &&
+          !attributeValue.startsWith("http://")
+            ? `${origin}/${attributeValue}`
+                .replace(/\/+/g, "/")
+                .replace(":/", "://")
+            : attributeValue;
+
+        linksArray.push(link);
+      }
+    });
+
+    resolve(linksArray);
+  });
+}
+
 // Function to extract links from a page
-function extractLinks($, origin) {
+async function extractLinks($, origin) {
   const links = {
     href_links: [],
     src_links: [],
   };
-  Promise.all([
 
-    $?.getElementsByTagName("a").forEach((element) => {
-      const hrefIndex = element?.attributes?.findIndex((d) => d?.name == "href");
-      const href = element?.attributes[hrefIndex]?.value;
-      if (href) {
-        // console.log(href);
-        !href.startsWith("https://") && !href.startsWith("http://")
-          ? links.href_links.push(
-              `${origin}/${href}`.replace(/\/+/g, "/").replace(":/", "://")
-            )
-          : links.href_links.push(href);
-      }
-    }),
-  
-    [
-      ...$?.getElementsByTagName("audio"),
-      ...$?.getElementsByTagName("embed"),
-      ...$?.getElementsByTagName("iframe"),
-      ...$?.getElementsByTagName("img"),
-      ...$?.getElementsByTagName("input"),
-      ...$?.getElementsByTagName("script"),
-      ...$?.getElementsByTagName("source"),
-      ...$?.getElementsByTagName("track"),
-      ...$?.getElementsByTagName("video"),
-    ].forEach((element) => {
-      const srcIndex = element?.attributes?.findIndex((d) => d?.name == "src");
-      const src = element?.attributes[srcIndex]?.value;
-      if (src) {
-        !src.startsWith("https://") && !src.startsWith("http://")
-          ? links.src_links.push(
-              `${origin}/${src}`.replace(/\/+/g, "/").replace(":/", "://")
-            )
-          : links.src_links.push(src);
-      }
-    })
-  ])
-
+  await Promise.all([
+    processElements($, "a", "href", origin),
+    processElements($, "audio", "src", origin),
+    processElements($, "embed", "src", origin),
+    processElements($, "iframe", "src", origin),
+    processElements($, "img", "src", origin),
+    processElements($, "input", "src", origin),
+    processElements($, "script", "src", origin),
+    processElements($, "source", "src", origin),
+    processElements($, "track", "src", origin),
+    processElements($, "video", "src", origin),
+  ]).then((res) => {
+    links.src_links.push(
+      ...res[1],
+      ...res[2],
+      ...res[3],
+      ...res[4],
+      ...res[5],
+      ...res[6],
+      ...res[7],
+      ...res[8],
+      ...res[9]
+    );
+    links.href_links.push(...res[0]);
+  });
+  // console.log(links);
   return links;
 }
 
@@ -103,14 +123,13 @@ async function crawlWebsite(startUrl) {
   );
   // console.log(queue);
   let i = 0;
+  let temp = [];
   while (CRAWLABLE_LINKS.length > 0) {
     const { url, depth } = CRAWLABLE_LINKS.shift();
 
-    const UNIQUE_CRAWLABLE_LINKS = 
-      queue.href_links.filter((thisLink) =>
-        checkCrawlabledLinks(thisLink.url, originUrl)
-      )
-
+    const UNIQUE_CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
+      checkCrawlabledLinks(thisLink.url, originUrl)
+    );
 
     if (!visitedUrls.has(url) && checkCrawlabledLinks(url, originUrl)) {
       // console.log(`Crawling: ${url}`);
@@ -128,53 +147,66 @@ async function crawlWebsite(startUrl) {
       );
       visitedUrls.add(url);
 
-     
-      const $ = await fetchAndParseHTML(url);
-      if ($) {
-        const links = extractLinks($, originUrl);
-        Promise.all([
-          links.href_links.forEach((link) => {
-            // You can process the link here\
+      // const $ = await fetchAndParseHTML(url);
+      temp.push(fetchAndParseHTML(url, queue));
+      // console.log(temp);
+      if (
+        temp.length == 100 ||
+        i == 0 ||
+        i == UNIQUE_CRAWLABLE_LINKS.length - 1
+      ) {
+        await Promise.all(temp).then((fetchData) => {
+          // console.log(fetchData);
+          fetchData.forEach(async (eachData) => {
+            const links = await extractLinks(eachData, originUrl);
+            Promise.all([
+              links.href_links.forEach((link) => {
+                // You can process the link here\
 
-            // Add the link to the queue for further crawling
-            CRAWLABLE_LINKS.push({ url: link, depth: depth + 1 });
-            const indexOfHrefOfUrl = queue.href_links.findIndex(
-              (o) => o.url == link
-            );
-            // console.log(indexOfHrefOfUrl);
-            if (indexOfHrefOfUrl == -1) {
-              queue.href_links.push({
-                url: link,
-                depth: depth + 1,
-                from: [url],
-              });
-            } else {
-              queue.href_links[indexOfHrefOfUrl].from = [
-                ...(queue.href_links[indexOfHrefOfUrl]?.from ?? []),
-                url,
-              ];
-            }
-          }),
+                // Add the link to the queue for further crawling
+                CRAWLABLE_LINKS.push({ url: link, depth: depth + 1 });
+                const indexOfHrefOfUrl = queue.href_links.findIndex(
+                  (o) => o.url == link
+                );
+                // console.log(indexOfHrefOfUrl);
+                if (indexOfHrefOfUrl == -1) {
+                  queue.href_links.push({
+                    url: link,
+                    depth: depth + 1,
+                    from: [url],
+                  });
+                } else {
+                  queue.href_links[indexOfHrefOfUrl].from = [
+                    ...(queue.href_links[indexOfHrefOfUrl]?.from ?? []),
+                    url,
+                  ];
+                }
+              }),
 
-          links.src_links.forEach((link) => {
-            const indexOfSrcOfUrl = queue.src_links.findIndex(
-              (o) => o.url == link
-            );
-            if (indexOfSrcOfUrl == -1)
-              queue.src_links.push({ url: link, from: [url] });
-            else {
-              queue.src_links[indexOfSrcOfUrl].from = [
-                ...(queue.src_links[indexOfSrcOfUrl]?.from ?? []),
-                url,
-              ];
-            }
-          }),
-        ]);
-      }
-      if (i % 100 == 0) {
-        console.log(queue.href_links.length);
+              links.src_links.forEach((link) => {
+                const indexOfSrcOfUrl = queue.src_links.findIndex(
+                  (o) => o.url == link
+                );
+                if (indexOfSrcOfUrl == -1)
+                  queue.src_links.push({ url: link, from: [url] });
+                else {
+                  queue.src_links[indexOfSrcOfUrl].from = [
+                    ...(queue.src_links[indexOfSrcOfUrl]?.from ?? []),
+                    url,
+                  ];
+                }
+              }),
+            ]);
+          });
+          temp = [];
+          console.log(queue.href_links.length);
+        });
+        CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
+          checkCrawlabledLinks(thisLink.url, originUrl)
+        );
         await delay(5000);
       }
+
       i++;
     }
   }
