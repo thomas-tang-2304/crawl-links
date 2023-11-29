@@ -1,38 +1,48 @@
 const { parseFromString } = require("dom-parser");
 const { color } = require("../func/coloringLogger");
-const { uniqueObjectsArray } = require("../func/uniqueArray");
+const { uniqueObjectsArray, uniqueArray } = require("../func/uniqueArray");
 const { writeFileSync } = require("fs");
 const { jsonToHtmlList } = require("../func/jsonToHtml");
 const { getFormattedDate } = require("../func/dating");
+const axios = require("axios");
 
 const {
   mapParentIndex,
   checkCrawlabledLinks,
   filterOriginStatics,
 } = require("./utils");
+const { decode } = require("../func/decodeURL");
 
 // Function to fetch and parse HTML
 
 async function fetchAndParseHTML(url, queue) {
   const indexOfCrawledUrl = queue.href_links.findIndex((o) => o.url == url);
   try {
-    const response = await (
-      await fetch(url, { timeout: 0 }).then((result) => {
-        console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
-
-        return result;
-      })
-    ).text();
-    if (indexOfCrawledUrl)
-      queue.href_links[indexOfCrawledUrl].crawl_status = "successfully";
-    return parseFromString(response);
+    const resJson = await fetch(url, {
+      timeout: 0,
+    });
+    const response = await resJson?.text(); // Replace fetch with axios.get
+    if (!resJson.ok) {
+      // make the promise be rejected if we didn't get a 2xx response
+      throw new Error("Not 2xx response", { cause: resJson });
+    } else {
+      console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
+      if (indexOfCrawledUrl) {
+        queue.href_links[indexOfCrawledUrl].crawl_status = "successfully";
+        queue.href_links[indexOfCrawledUrl].status_code = resJson?.status;
+      }
+      // console.log(resJson.status);
+      return response ? parseFromString(response) : null;
+    }
   } catch (error) {
     // console.log("response.status =", error.status);
     console.error("Error fetching URL:", url);
     console.error(error.message);
-if (indexOfCrawledUrl)
-  queue.href_links[indexOfCrawledUrl].crawl_status = "failed";
-    
+    if (indexOfCrawledUrl) {
+      queue.href_links[indexOfCrawledUrl].status_code = error?.cause?.status;
+      queue.href_links[indexOfCrawledUrl].crawl_status = "failed";
+    }
+    // console.log(error.cause.status);
     return null;
   }
 }
@@ -73,6 +83,7 @@ async function extractLinks($, origin) {
   };
 
   await Promise.all([
+    processElements($, "link", "href", origin),
     processElements($, "a", "href", origin),
     processElements($, "audio", "src", origin),
     processElements($, "embed", "src", origin),
@@ -84,18 +95,31 @@ async function extractLinks($, origin) {
     processElements($, "track", "src", origin),
     processElements($, "video", "src", origin),
   ]).then((res) => {
+    const result = {
+      link: res[0].map((e) => ({ url: e, tag: "link" })),
+      a: res[1].map((e) => ({ url: e, tag: "a" })),
+      audio: res[2].map((e) => ({ url: e, tag: "audio" })),
+      embed: res[3].map((e) => ({ url: e, tag: "embed" })),
+      iframe: res[4].map((e) => ({ url: e, tag: "iframe" })),
+      img: res[5].map((e) => ({ url: e, tag: "img" })),
+      input: res[6].map((e) => ({ url: e, tag: "input" })),
+      script: res[7].map((e) => ({ url: e, tag: "script" })),
+      source: res[8].map((e) => ({ url: e, tag: "source" })),
+      track: res[9].map((e) => ({ url: e, tag: "track" })),
+      video: res[10].map((e) => ({ url: e, tag: "video" })),
+    };
     links.src_links.push(
-      ...res[1],
-      ...res[2],
-      ...res[3],
-      ...res[4],
-      ...res[5],
-      ...res[6],
-      ...res[7],
-      ...res[8],
-      ...res[9]
+      ...result.audio,
+      ...result.embed,
+      ...result.iframe,
+      ...result.img,
+      ...result.input,
+      ...result.script,
+      ...result.source,
+      ...result.track,
+      ...result.video
     );
-    links.href_links.push(...res[0]);
+    links.href_links.push(...result.link, ...result.a);
   });
   // console.log(links);
   return links;
@@ -115,23 +139,24 @@ async function crawlWebsite(startUrl) {
 
   const visitedUrls = new Set();
   const queue = {
-    href_links: [{ url: startUrl, depth: 0 }],
+    href_links: [{ url: startUrl, depth: 0, tag: "a" }],
     src_links: [],
   };
   let CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
-    checkCrawlabledLinks(thisLink.url, originUrl)
+    checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
   );
+  
   // console.log(queue);
   let i = 0;
   let temp = [];
   while (CRAWLABLE_LINKS.length > 0) {
-    const { url, depth } = CRAWLABLE_LINKS.shift();
+    const { url, depth} = CRAWLABLE_LINKS.shift();
 
     const UNIQUE_CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
-      checkCrawlabledLinks(thisLink.url, originUrl)
+      checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
     );
 
-    if (!visitedUrls.has(url) && checkCrawlabledLinks(url, originUrl)) {
+    if (!visitedUrls.has(url)) {
       // console.log(`Crawling: ${url}`);
       console.log(
         `${color("Crawl link:", "cyan")} ${color(url + ",", "blue")} ${color(
@@ -164,16 +189,17 @@ async function crawlWebsite(startUrl) {
                 // You can process the link here\
 
                 // Add the link to the queue for further crawling
-                CRAWLABLE_LINKS.push({ url: link, depth: depth + 1 });
+                CRAWLABLE_LINKS.push({ url: link.url, depth: depth + 1 });
                 const indexOfHrefOfUrl = queue.href_links.findIndex(
-                  (o) => o.url == link
+                  (o) => o.url == link.url
                 );
                 // console.log(indexOfHrefOfUrl);
                 if (indexOfHrefOfUrl == -1) {
                   queue.href_links.push({
-                    url: link,
+                    url: link.url,
                     depth: depth + 1,
                     from: [url],
+                    tag: link.tag,
                   });
                 } else {
                   queue.href_links[indexOfHrefOfUrl].from = [
@@ -185,10 +211,14 @@ async function crawlWebsite(startUrl) {
 
               links.src_links.forEach((link) => {
                 const indexOfSrcOfUrl = queue.src_links.findIndex(
-                  (o) => o.url == link
+                  (o) => o.url == link.url
                 );
                 if (indexOfSrcOfUrl == -1)
-                  queue.src_links.push({ url: link, from: [url] });
+                  queue.src_links.push({
+                    url: link.url,
+                    from: [url],
+                    tag: link.tag,
+                  });
                 else {
                   queue.src_links[indexOfSrcOfUrl].from = [
                     ...(queue.src_links[indexOfSrcOfUrl]?.from ?? []),
@@ -201,10 +231,11 @@ async function crawlWebsite(startUrl) {
           temp = [];
           console.log(queue.href_links.length);
         });
-        CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
-          checkCrawlabledLinks(thisLink.url, originUrl)
+        CRAWLABLE_LINKS = queue.href_links.filter(async (thisLink) =>
+        checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
         );
         await delay(5000);
+        console.log(CRAWLABLE_LINKS);
       }
 
       i++;
@@ -225,8 +256,22 @@ async function crawlWebsite(startUrl) {
       )}.json`,
       JSON.stringify({
         allLinks: {
-          href_links: finishedHref,
-          src_links: finishedSrc,
+          href_links: finishedHref.map((e) =>
+            e.from
+              ? {
+                  ...e,
+                  from: uniqueArray(e.from),
+                }
+              : e
+          ),
+          src_links: finishedSrc.map((e) =>
+            e.from
+              ? {
+                  ...e,
+                  from: uniqueArray(e.from),
+                }
+              : e
+          ),
         },
       })
     );

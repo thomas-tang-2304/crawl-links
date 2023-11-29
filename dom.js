@@ -58,7 +58,7 @@ web_array.forEach((url) => {
   axios
     .request(config)
     .then((response) => {
-      console.log(JSON.stringify(response.data));
+      console.log("Finish", config.data.url);
     })
     .catch((error) => {
       console.log(error);
