@@ -6,6 +6,7 @@ const { configEnv } = require("../../configEnv");
 const { crawlWebsite } = require("../../crawl/cheerio/ch");
 const { filterOriginStatics } = require("../../crawl/cheerio/utils");
 const { jsonToHtmlList } = require("../../crawl/func/jsonToHtml");
+const { measureTime } = require("../../crawl/func/measure");
 
 const emailRouter = express.Router();
 
@@ -30,10 +31,11 @@ emailRouter.post("/send", async (req, res) => {
     console.log({ email, url, uid_socket });
     if (!email || !url || !uid_socket)
       throw new Error("Please provide email, subject and url!");
-    const htmlResult = (await crawlWebsite(parseUrl, uid_socket)).replace(
+
+    const htmlResult = await measureTime(async() => (await crawlWebsite(parseUrl, uid_socket)).replace(
       /\[object Object\]/g,
       ""
-    );
+    ))
 
     const myAccessTokenObject = await myOAuth2Client.getAccessToken();
 
