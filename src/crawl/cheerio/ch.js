@@ -17,7 +17,6 @@ const socket = require("socket.io-client")(serverURL, {
   transports: ["websocket"],
 });
 
-
 // Function to fetch and parse HTML
 
 async function fetchAndParseHTML(url, queue) {
@@ -31,8 +30,7 @@ async function fetchAndParseHTML(url, queue) {
       // make the promise be rejected if we didn't get a 2xx response
       throw new Error("Not 2xx response", { cause: resJson });
     } else {
-      // console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
-
+      console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
 
       if (queue.href_links.hasOwnProperty(url)) {
         queue.href_links[url].crawl_status = "successfully";
@@ -170,8 +168,12 @@ async function crawlWebsite(startUrl, uid_socket) {
           queue.href_links[thisLink].tag
         )
     );
+    // console.log(queue.href_links[url].tag);
 
-    if (queue.href_links[url].tag == "a" && !visitedUrls.has(url)) {
+    if (
+      !visitedUrls.has(url) &&
+      checkCrawlabledLinks(url, originUrl, queue.href_links[url].tag)
+    ) {
       // console.log(`Crawling: ${url}`);
       console.log(
         `${color("Crawl link:", "cyan")} ${color(url + ",", "blue")} ${color(
@@ -192,74 +194,68 @@ async function crawlWebsite(startUrl, uid_socket) {
       temp.push(fetchAndParseHTML(url, queue));
       // console.log(temp);
       if (
-        temp.length == 1000 ||
+        temp.length == 100 ||
         i == 0 ||
         i == UNIQUE_CRAWLABLE_LINKS.length - 1
       ) {
-          await Promise.all(temp).then((fetchData) => {
-            fetchData.forEach(async (eachData) => {
-              const links = await extractLinks(eachData, originUrl);
+        await Promise.all(temp).then((fetchData) => {
+          fetchData.forEach(async (eachData) => {
+            const links = await extractLinks(eachData, originUrl);
 
-              Promise.all([
-                links.href_links.forEach((link) => {
-                  CRAWLABLE_LINKS.push({
-                    url: link.url,
+            Promise.all([
+              links.href_links.forEach((link) => {
+                CRAWLABLE_LINKS.push(link.url);
+                // const indexOfHrefOfUrl = queue.href_links.findIndex(
+                //   (o) => o.url == link.url
+                // );
+                // console.log(indexOfHrefOfUrl);
+                if (!queue.href_links.hasOwnProperty(link.url)) {
+                  queue.href_links[link.url] = {
+                    // url: link.url,
                     depth: queue.href_links[url].depth + 1,
+                    from: [url],
                     tag: link.tag,
-                  });
-                  // const indexOfHrefOfUrl = queue.href_links.findIndex(
-                  //   (o) => o.url == link.url
-                  // );
-                  // console.log(indexOfHrefOfUrl);
-                  if (!queue.href_links.hasOwnProperty(link.url)) {
-                    queue.href_links[link.url] = {
-                      // url: link.url,
-                      depth: queue.href_links[url].depth + 1,
-                      from: [url],
-                      tag: link.tag,
-                    };
-                  } else {
-                    queue.href_links[link.url].from = [
-                      ...(queue.href_links[link.url]?.from ?? []),
-                      url,
-                    ];
-                  }
-                }),
+                  };
+                } else {
+                  queue.href_links[link.url].from = [
+                    ...(queue.href_links[link.url]?.from ?? []),
+                    url,
+                  ];
+                }
+              }),
 
-                links.src_links.forEach((link) => {
-                  // const indexOfSrcOfUrl = queue.src_links.findIndex(
-                  //   (o) => o.url == link.url
-                  // );
-                  if (!queue.src_links.hasOwnProperty(link.url))
-                    queue.src_links[link.url] = {
-                      from: [url],
-                      tag: link.tag,
-                    };
-                  else {
-                    queue.src_links[link.url].from = [
-                      ...(queue.src_links[link.url]?.from ?? []),
-                      url,
-                    ];
-                  }
-                }),
-              ]);
-            });
-          })
-
-       
+              links.src_links.forEach((link) => {
+                // const indexOfSrcOfUrl = queue.src_links.findIndex(
+                //   (o) => o.url == link.url
+                // );
+                if (!queue.src_links.hasOwnProperty(link.url))
+                  queue.src_links[link.url] = {
+                    from: [url],
+                    tag: link.tag,
+                  };
+                else {
+                  queue.src_links[link.url].from = [
+                    ...(queue.src_links[link.url]?.from ?? []),
+                    url,
+                  ];
+                }
+              }),
+            ]);
+          });
+        });
 
         temp = [];
 
+        CRAWLABLE_LINKS = Object.keys(queue.href_links).filter((thisLink) =>
+          checkCrawlabledLinks(
+            thisLink,
+            originUrl,
+            queue.href_links[thisLink].tag
+          )
+        );
+        lastLength = UNIQUE_CRAWLABLE_LINKS.length;
       }
       await delay(0);
-      CRAWLABLE_LINKS = Object.keys(queue.href_links).filter((thisLink) =>
-        checkCrawlabledLinks(
-          thisLink,
-          originUrl,
-          queue.href_links[thisLink].tag
-        )
-      );
-      lastLength = UNIQUE_CRAWLABLE_LINKS.length;
 
       await socket.emit(
         "chat message",
@@ -272,69 +268,54 @@ async function crawlWebsite(startUrl, uid_socket) {
         }),
         uid_socket
       );
-
-
-      await socket.emit(
-        "chat message",
-        JSON.stringify({
-          total: UNIQUE_CRAWLABLE_LINKS.length,
-          index: i + 1,
-          progress: Math.round(((i + 1) * 100) / UNIQUE_CRAWLABLE_LINKS.length),
-          increase: UNIQUE_CRAWLABLE_LINKS.length - lastLength,
-          crawling_for: UNIQUE_CRAWLABLE_LINKS.slice(-1)[0].url,
-        }),
-        uid_socket
-      );
-     
 
       i++;
     }
   }
 
-   const finishedHref = mapParentIndex(Object.keys(queue.href_links), queue);
+  const finishedHref = mapParentIndex(Object.keys(queue.href_links), queue);
 
-   const finishedSrc = mapParentIndex(Object.keys(queue.src_links), queue);
+  const finishedSrc = mapParentIndex(Object.keys(queue.src_links), queue);
 
-   if (originUrl.indexOf(".") != -1) {
-     writeFileSync(
-       `src/crawl/history/${new URL(originUrl).hostname.replace(
-         /\./g,
-         "-"
-       )}.json`,
-       JSON.stringify({
-         allLinks: {
-           href_links: finishedHref.map((e) =>
-             e.from
-               ? {
-                   ...e,
-                   from: uniqueArray(e.from),
-                 }
-               : e
-           ),
-           src_links: finishedSrc.map((e) =>
-             e.from
-               ? {
-                   ...e,
-                   from: uniqueArray(e.from),
-                 }
-               : e
-           ),
-         },
-       })
-     );
-     console.log(
-       `file has been written into ${new URL(originUrl).hostname.replace(
-         /\./g,
-         "-"
-       )}.json`
-     );
-   }
+  if (originUrl.indexOf(".") != -1) {
+    writeFileSync(
+      `src/crawl/history/${new URL(originUrl).hostname.replace(
+        /\./g,
+        "-"
+      )}.json`,
+      JSON.stringify({
+        allLinks: {
+          href_links: finishedHref.map((e) =>
+            e.from
+              ? {
+                  ...e,
+                  from: uniqueArray(e.from),
+                }
+              : e
+          ),
+          src_links: finishedSrc.map((e) =>
+            e.from
+              ? {
+                  ...e,
+                  from: uniqueArray(e.from),
+                }
+              : e
+          ),
+        },
+      })
+    );
+    console.log(
+      `file has been written into ${new URL(originUrl).hostname.replace(
+        /\./g,
+        "-"
+      )}.json`
+    );
+  }
 
   const fileLinks = require(`../history/${new URL(originUrl).hostname.replace(
     /\./g,
     "-"
   )}.json`);
-
 
   return jsonToHtmlList({
     completed_date: getFormattedDate(),
