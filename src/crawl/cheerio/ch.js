@@ -1,22 +1,26 @@
 const { parseFromString } = require("dom-parser");
 const { color } = require("../func/coloringLogger");
-const { uniqueObjectsArray, uniqueArray } = require("../func/uniqueArray");
+const { uniqueArray } = require("../func/uniqueArray");
 const { writeFileSync } = require("fs");
 const { jsonToHtmlList } = require("../func/jsonToHtml");
 const { getFormattedDate } = require("../func/dating");
-const axios = require("axios");
 
 const {
   mapParentIndex,
   checkCrawlabledLinks,
   filterOriginStatics,
 } = require("./utils");
-const { decode } = require("../func/decodeURL");
+// const { decode } = require("../func/decodeURL");
+
+const serverURL = "ws://localhost:3001";
+const socket = require("socket.io-client")(serverURL, {
+  transports: ["websocket"],
+});
 
 // Function to fetch and parse HTML
 
 async function fetchAndParseHTML(url, queue) {
-  const indexOfCrawledUrl = queue.href_links.findIndex((o) => o.url == url);
+  // const indexOfCrawledUrl = queue.href_links.findIndex((o) => o.url == url);
   try {
     const resJson = await fetch(url, {
       timeout: 0,
@@ -26,21 +30,22 @@ async function fetchAndParseHTML(url, queue) {
       // make the promise be rejected if we didn't get a 2xx response
       throw new Error("Not 2xx response", { cause: resJson });
     } else {
-      console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
-      if (indexOfCrawledUrl) {
-        queue.href_links[indexOfCrawledUrl].crawl_status = "successfully";
-        queue.href_links[indexOfCrawledUrl].status_code = resJson?.status;
+      // console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
+
+      if (queue.href_links.hasOwnProperty(url)) {
+        queue.href_links[url].crawl_status = "successfully";
+        queue.href_links[url].status_code = resJson?.status;
       }
       // console.log(resJson.status);
       return response ? parseFromString(response) : null;
     }
   } catch (error) {
-    // console.log("response.status =", error.status);
-    console.error("Error fetching URL:", url);
-    console.error(error.message);
-    if (indexOfCrawledUrl) {
-      queue.href_links[indexOfCrawledUrl].status_code = error?.cause?.status;
-      queue.href_links[indexOfCrawledUrl].crawl_status = "failed";
+    // console.error("Error fetching URL:", url);
+    // console.error(error.message);
+
+    if (queue.href_links.hasOwnProperty(url)) {
+      queue.href_links[url].status_code = error?.cause?.status;
+      queue.href_links[url].crawl_status = "failed";
     }
     // console.log(error.cause.status);
     return null;
@@ -130,7 +135,7 @@ function delay(ms) {
 }
 
 // Function to crawl a website
-async function crawlWebsite(startUrl) {
+async function crawlWebsite(startUrl, uid_socket) {
   const originUrl = startUrl.includes("http")
     ? startUrl
     : new URL(`https://${startUrl}`).href;
@@ -139,30 +144,38 @@ async function crawlWebsite(startUrl) {
 
   const visitedUrls = new Set();
   const queue = {
-    href_links: [{ url: startUrl, depth: 0, tag: "a" }],
-    src_links: [],
+    href_links: {},
+    src_links: {},
   };
-  let CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
-    checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
+
+  queue.href_links[startUrl] = { depth: 0, tag: "a" };
+  let CRAWLABLE_LINKS = Object.keys(queue.href_links).filter((thisLink) =>
+    checkCrawlabledLinks(thisLink, originUrl, queue.href_links[thisLink].tag)
   );
-  
-  // console.log(queue);
+
+  console.log(CRAWLABLE_LINKS);
   let i = 0;
+  let lastLength = 0;
   let temp = [];
   while (CRAWLABLE_LINKS.length > 0) {
-    const { url, depth} = CRAWLABLE_LINKS.shift();
+    const url = CRAWLABLE_LINKS.shift();
 
-    const UNIQUE_CRAWLABLE_LINKS = queue.href_links.filter((thisLink) =>
-      checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
+    const UNIQUE_CRAWLABLE_LINKS = Object.keys(queue.href_links).filter(
+      (thisLink) =>
+        checkCrawlabledLinks(
+          thisLink,
+          originUrl,
+          queue.href_links[thisLink].tag
+        )
     );
 
-    if (!visitedUrls.has(url)) {
+    if (queue.href_links[url].tag == "a" && !visitedUrls.has(url)) {
       // console.log(`Crawling: ${url}`);
       console.log(
         `${color("Crawl link:", "cyan")} ${color(url + ",", "blue")} ${color(
           "Depth: ",
           "cyan"
-        )} ${color(depth, "yellow")}, finished ${color(
+        )} ${color(queue.href_links[url].depth, "yellow")}, finished ${color(
           i + 1,
           "green"
         )} links of ${color(UNIQUE_CRAWLABLE_LINKS.length, "green")} (${color(
@@ -170,6 +183,7 @@ async function crawlWebsite(startUrl) {
           "red"
         )})`
       );
+
       visitedUrls.add(url);
 
       // const $ = await fetchAndParseHTML(url);
@@ -180,114 +194,135 @@ async function crawlWebsite(startUrl) {
         i == 0 ||
         i == UNIQUE_CRAWLABLE_LINKS.length - 1
       ) {
-        await Promise.all(temp).then((fetchData) => {
-          // console.log(fetchData);
-          fetchData.forEach(async (eachData) => {
-            const links = await extractLinks(eachData, originUrl);
-            Promise.all([
-              links.href_links.forEach((link) => {
-                // You can process the link here\
+          await Promise.all(temp).then((fetchData) => {
+            fetchData.forEach(async (eachData) => {
+              const links = await extractLinks(eachData, originUrl);
 
-                // Add the link to the queue for further crawling
-                CRAWLABLE_LINKS.push({ url: link.url, depth: depth + 1 });
-                const indexOfHrefOfUrl = queue.href_links.findIndex(
-                  (o) => o.url == link.url
-                );
-                // console.log(indexOfHrefOfUrl);
-                if (indexOfHrefOfUrl == -1) {
-                  queue.href_links.push({
+              Promise.all([
+                links.href_links.forEach((link) => {
+                  CRAWLABLE_LINKS.push({
                     url: link.url,
-                    depth: depth + 1,
-                    from: [url],
+                    depth: queue.href_links[url].depth + 1,
                     tag: link.tag,
                   });
-                } else {
-                  queue.href_links[indexOfHrefOfUrl].from = [
-                    ...(queue.href_links[indexOfHrefOfUrl]?.from ?? []),
-                    url,
-                  ];
-                }
-              }),
+                  // const indexOfHrefOfUrl = queue.href_links.findIndex(
+                  //   (o) => o.url == link.url
+                  // );
+                  // console.log(indexOfHrefOfUrl);
+                  if (!queue.href_links.hasOwnProperty(link.url)) {
+                    queue.href_links[link.url] = {
+                      // url: link.url,
+                      depth: queue.href_links[url].depth + 1,
+                      from: [url],
+                      tag: link.tag,
+                    };
+                  } else {
+                    queue.href_links[link.url].from = [
+                      ...(queue.href_links[link.url]?.from ?? []),
+                      url,
+                    ];
+                  }
+                }),
 
-              links.src_links.forEach((link) => {
-                const indexOfSrcOfUrl = queue.src_links.findIndex(
-                  (o) => o.url == link.url
-                );
-                if (indexOfSrcOfUrl == -1)
-                  queue.src_links.push({
-                    url: link.url,
-                    from: [url],
-                    tag: link.tag,
-                  });
-                else {
-                  queue.src_links[indexOfSrcOfUrl].from = [
-                    ...(queue.src_links[indexOfSrcOfUrl]?.from ?? []),
-                    url,
-                  ];
-                }
-              }),
-            ]);
-          });
-          temp = [];
-          console.log(queue.href_links.length);
-        });
-        CRAWLABLE_LINKS = queue.href_links.filter(async (thisLink) =>
-        checkCrawlabledLinks(thisLink.url, originUrl, thisLink.tag)
-        );
-        await delay(5000);
-        console.log(CRAWLABLE_LINKS);
+                links.src_links.forEach((link) => {
+                  // const indexOfSrcOfUrl = queue.src_links.findIndex(
+                  //   (o) => o.url == link.url
+                  // );
+                  if (!queue.src_links.hasOwnProperty(link.url))
+                    queue.src_links[link.url] = {
+                      from: [url],
+                      tag: link.tag,
+                    };
+                  else {
+                    queue.src_links[link.url].from = [
+                      ...(queue.src_links[link.url]?.from ?? []),
+                      url,
+                    ];
+                  }
+                }),
+              ]);
+            });
+          })
+
+       
+
+        temp = [];
       }
+      await delay(0);
+      CRAWLABLE_LINKS = Object.keys(queue.href_links).filter((thisLink) =>
+        checkCrawlabledLinks(
+          thisLink,
+          originUrl,
+          queue.href_links[thisLink].tag
+        )
+      );
+      lastLength = UNIQUE_CRAWLABLE_LINKS.length;
+
+      await socket.emit(
+        "chat message",
+        JSON.stringify({
+          total: UNIQUE_CRAWLABLE_LINKS.length,
+          index: i + 1,
+          progress: Math.round(((i + 1) * 100) / UNIQUE_CRAWLABLE_LINKS.length),
+          increase: UNIQUE_CRAWLABLE_LINKS.length - lastLength,
+          crawling_for: UNIQUE_CRAWLABLE_LINKS.slice(-1)[0].url,
+        }),
+        uid_socket
+      );
 
       i++;
     }
   }
-  queue.href_links = uniqueObjectsArray(queue.href_links, "url");
-  queue.src_links = uniqueObjectsArray(queue.src_links, "url");
 
-  const finishedHref = mapParentIndex(queue.href_links, queue.href_links);
+   const finishedHref = mapParentIndex(Object.keys(queue.href_links), queue);
 
-  const finishedSrc = mapParentIndex(queue.src_links, queue.href_links);
+   const finishedSrc = mapParentIndex(Object.keys(queue.src_links), queue);
 
-  if (originUrl.indexOf(".") != -1) {
-    writeFileSync(
-      `src/crawl/history/${new URL(originUrl).hostname.replace(
-        /\./g,
-        "-"
-      )}.json`,
-      JSON.stringify({
-        allLinks: {
-          href_links: finishedHref.map((e) =>
-            e.from
-              ? {
-                  ...e,
-                  from: uniqueArray(e.from),
-                }
-              : e
-          ),
-          src_links: finishedSrc.map((e) =>
-            e.from
-              ? {
-                  ...e,
-                  from: uniqueArray(e.from),
-                }
-              : e
-          ),
-        },
-      })
-    );
-    console.log(
-      `file has been written into ${new URL(originUrl).hostname.replace(
-        /\./g,
-        "-"
-      )}.json`
-    );
-  }
+   if (originUrl.indexOf(".") != -1) {
+     writeFileSync(
+       `src/crawl/history/${new URL(originUrl).hostname.replace(
+         /\./g,
+         "-"
+       )}.json`,
+       JSON.stringify({
+         allLinks: {
+           href_links: finishedHref.map((e) =>
+             e.from
+               ? {
+                   ...e,
+                   from: uniqueArray(e.from),
+                 }
+               : e
+           ),
+           src_links: finishedSrc.map((e) =>
+             e.from
+               ? {
+                   ...e,
+                   from: uniqueArray(e.from),
+                 }
+               : e
+           ),
+         },
+       })
+     );
+     console.log(
+       `file has been written into ${new URL(originUrl).hostname.replace(
+         /\./g,
+         "-"
+       )}.json`
+     );
+   }
+
+  const fileLinks = require(`../history/${new URL(originUrl).hostname.replace(
+    /\./g,
+    "-"
+  )}.json`);
 
   return jsonToHtmlList({
     completed_date: getFormattedDate(),
     // token,
-    href: filterOriginStatics(finishedHref.map((u) => u.url)),
-    src: filterOriginStatics(finishedSrc.map((u) => u.url)),
+    href: filterOriginStatics(fileLinks.allLinks.href_links),
+    src: filterOriginStatics(fileLinks.allLinks.src_links),
   });
 }
 

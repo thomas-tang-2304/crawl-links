@@ -1,4 +1,4 @@
-async function measureTime (callback) {
+async function measureTime(callback) {
   // Record the start time
   const startTime = new Date();
 
@@ -21,10 +21,12 @@ async function measureTime (callback) {
   console.log(
     `Elapsed time: ${elapsedHours}:${elapsedMinutes}:${elapsedSeconds}`
   );
-  return runner;
+  return {
+    elapsedTime,
+    runner,
+  };
 }
 
 // Call the function to measure performance
 
-
-module.exports = {measureTime};
+module.exports = { measureTime };

@@ -1,11 +1,11 @@
 const express = require("express");
 const nodemailer = require("nodemailer");
 const { OAuth2Client } = require("google-auth-library");
-const { runCrawling } = require("../../crawl");
+// const { runCrawling } = require("../../crawl");
 const { configEnv } = require("../../configEnv");
 const { crawlWebsite } = require("../../crawl/cheerio/ch");
-const { filterOriginStatics } = require("../../crawl/cheerio/utils");
-const { jsonToHtmlList } = require("../../crawl/func/jsonToHtml");
+// const { filterOriginStatics } = require("../../crawl/cheerio/utils");
+// const { jsonToHtmlList } = require("../../crawl/func/jsonToHtml");
 const { measureTime } = require("../../crawl/func/measure");
 
 const emailRouter = express.Router();
@@ -31,10 +31,8 @@ emailRouter.post("/send", async (req, res) => {
     console.log({ email, url });
     if (!email || !url)
       throw new Error("Please provide email, subject and url!");
-    const htmlResult = await measureTime(async() => (await crawlWebsite(parseUrl)).replace(
-      /\[object Object\]/g,
-      ""
-    ))
+    const result = await measureTime(async () => await crawlWebsite(parseUrl));
+    const htmlResult = result.runner.replace(/\[object Object\]/g, "");
 
     const myAccessTokenObject = await myOAuth2Client.getAccessToken();
 
@@ -64,7 +62,10 @@ emailRouter.post("/send", async (req, res) => {
     await transport.sendMail(mailOptions);
 
     // Không có lỗi gì thì trả về success
-    res.status(200).json({ message: "Email sent successfully." });
+    res.status(200).json({
+      elapsedTime: result.elapsedTime,
+      message: "Email sent successfully.",
+    });
   } catch (error) {
     const mailOptions = {
       to: email, // Gửi đến ai?

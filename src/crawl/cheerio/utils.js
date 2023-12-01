@@ -5,15 +5,17 @@ const checkCrawlabledLinks = (thisLink, originUrl, tag) =>
   thisLink?.startsWith(originUrl) && //allow links which only contains the input main origin
   !thisLink.includes("#") && //ignore links which contains '#' characters
   !/\.(png|jpg|webp|avif|jpeg|gif|tiff|svg|pdf)$/i.test(thisLink) &&
-  tag == "a" //ignore links which are containing image extension
+  tag == "a"; //ignore links which are containing image extension
 
-const mapParentIndex = (objArray, refArray) => {
-  const parentLinkIndex = (objArray2, myLink) =>
-    objArray2.findIndex((o) => o.url == myLink);
+const mapParentIndex = (objArray, queue) => {
+  const parentLinkIndex = (objArray2, myLink) => objArray2.indexOf(myLink);
 
-  return uniqueObjectsArray(objArray, "url").map((queueLink) => ({
-    ...queueLink,
-    from: queueLink.from?.map((urlLink) => parentLinkIndex(refArray, urlLink)),
+  return objArray.map((queueLink) => ({
+    url: queueLink,
+    ...queue?.href_links[queueLink],
+    from: queue?.href_links[queueLink]?.from?.map((urlLink) =>
+      parentLinkIndex(Object.keys(queue.href_links), urlLink)
+    ),
   }));
 };
 
@@ -24,26 +26,26 @@ const mapParentLink = (indexArray, refArray) => {
 };
 
 const filterOriginStatics = (jsonArray) => ({
-  origin: uniqueArray(
-    jsonArray.map((link) =>
-      link.toString().split("/")[2]
-        ? isDataURI(link)
-          ? link
-          : link.toString().split("/")[2]
-        : link
+  origin: jsonArray
+    .map((link) =>
+      link.url.toString().split("/")[2]
+        ? isDataURI(link.url)
+          ? link.url
+          : link.url.toString().split("/")[2]
+        : link.url
     )
-  ).reduce((result, element) => {
-    result[element] = jsonArray
-      .map((link) =>
-        link.toString().split("/")[2]
-          ? isDataURI(link)
-            ? link
-            : link.toString().split("/")[2]
-          : link
-      )
-      .filter((l) => l == element).length;
-    return result;
-  }, {}),
+    .reduce((result, element) => {
+      result[element] = jsonArray
+        .map((link) =>
+          link.url.toString().split("/")[2]
+            ? isDataURI(link.url)
+              ? link.url
+              : link.url.toString().split("/")[2]
+            : link.url
+        )
+        .filter((l) => l == element).length;
+      return result;
+    }, {}),
 
   total: jsonArray.length,
 });
