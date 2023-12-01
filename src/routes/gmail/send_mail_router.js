@@ -24,15 +24,16 @@ myOAuth2Client.setCredentials({
 
 // Tạo API /email/send với method POST
 emailRouter.post("/send", async (req, res) => {
-  const { email, url } = req.body;
+  const { email, url, uid_socket } = req.body;
   const parseUrl = url.includes("http") ? url : new URL(`https://${url}`).href;
   try {
     // Lấy thông tin gửi lên từ client qua body
-    console.log({ email, url });
-    if (!email || !url)
+    console.log({ email, url, uid_socket });
+    if (!email || !url || !uid_socket)
       throw new Error("Please provide email, subject and url!");
     const result = await measureTime(async () => await crawlWebsite(parseUrl));
     const htmlResult = result.runner.replace(/\[object Object\]/g, "");
+
 
     const myAccessTokenObject = await myOAuth2Client.getAccessToken();
 

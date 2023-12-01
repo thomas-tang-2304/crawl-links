@@ -17,6 +17,7 @@ const socket = require("socket.io-client")(serverURL, {
   transports: ["websocket"],
 });
 
+
 // Function to fetch and parse HTML
 
 async function fetchAndParseHTML(url, queue) {
@@ -31,6 +32,7 @@ async function fetchAndParseHTML(url, queue) {
       throw new Error("Not 2xx response", { cause: resJson });
     } else {
       // console.log(color(`FETCH SUCCESSFULLY ${url}`, "yellow"));
+
 
       if (queue.href_links.hasOwnProperty(url)) {
         queue.href_links[url].crawl_status = "successfully";
@@ -190,7 +192,7 @@ async function crawlWebsite(startUrl, uid_socket) {
       temp.push(fetchAndParseHTML(url, queue));
       // console.log(temp);
       if (
-        temp.length == 100 ||
+        temp.length == 1000 ||
         i == 0 ||
         i == UNIQUE_CRAWLABLE_LINKS.length - 1
       ) {
@@ -247,6 +249,7 @@ async function crawlWebsite(startUrl, uid_socket) {
        
 
         temp = [];
+
       }
       await delay(0);
       CRAWLABLE_LINKS = Object.keys(queue.href_links).filter((thisLink) =>
@@ -269,6 +272,20 @@ async function crawlWebsite(startUrl, uid_socket) {
         }),
         uid_socket
       );
+
+
+      await socket.emit(
+        "chat message",
+        JSON.stringify({
+          total: UNIQUE_CRAWLABLE_LINKS.length,
+          index: i + 1,
+          progress: Math.round(((i + 1) * 100) / UNIQUE_CRAWLABLE_LINKS.length),
+          increase: UNIQUE_CRAWLABLE_LINKS.length - lastLength,
+          crawling_for: UNIQUE_CRAWLABLE_LINKS.slice(-1)[0].url,
+        }),
+        uid_socket
+      );
+     
 
       i++;
     }
@@ -317,6 +334,7 @@ async function crawlWebsite(startUrl, uid_socket) {
     /\./g,
     "-"
   )}.json`);
+
 
   return jsonToHtmlList({
     completed_date: getFormattedDate(),

@@ -2,10 +2,10 @@ const { uniqueArray, uniqueObjectsArray } = require("../func/uniqueArray");
 const { isDataURI } = require("../func/validUrl");
 
 const checkCrawlabledLinks = (thisLink, originUrl, tag) =>
-  thisLink?.startsWith(originUrl) && //allow links which only contains the input main origin
-  !thisLink.includes("#") && //ignore links which contains '#' characters
-  !/\.(png|jpg|webp|avif|jpeg|gif|tiff|svg|pdf)$/i.test(thisLink) &&
-  tag == "a"; //ignore links which are containing image extension
+  tag == "a" &&
+  thisLink?.startsWith(originUrl) &&
+  !thisLink.includes("#") &&
+  !/\.(png|jpg|webp|avif|jpeg|gif|tiff|svg|pdf)$/i.test(thisLink);
 
 const mapParentIndex = (objArray, queue) => {
   const parentLinkIndex = (objArray2, myLink) => objArray2.indexOf(myLink);
